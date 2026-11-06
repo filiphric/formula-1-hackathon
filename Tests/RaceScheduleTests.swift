@@ -61,3 +61,11 @@ private func instant(_ value: String) -> Date {
     #expect(RaceSchedule.endpoint(from: "https://example.com", season: 2026) == nil)
     #expect(RaceSchedule.endpoint(from: "ws://user:password@example.com/live", season: 2026) == nil)
 }
+
+@Test func backendFractionalFetchTimestampControlsFreshness() throws {
+    let schedule = try fixture()
+    let fetched = try #require(schedule.fetchedDate)
+    #expect(abs(fetched.timeIntervalSince(instant("2026-11-06T15:00:00Z")) - 0.123456) < 0.001)
+    #expect(!schedule.isStale(at: fetched.addingTimeInterval(899)))
+    #expect(schedule.isStale(at: fetched.addingTimeInterval(900)))
+}

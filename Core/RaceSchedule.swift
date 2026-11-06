@@ -8,6 +8,12 @@ public struct RaceSchedule: Codable, Sendable {
     public let stale: Bool
     public let races: [RaceWeekend]
 
+    public var fetchedDate: Date? { parseScheduleDate(fetchedAt) }
+
+    public func isStale(at now: Date) -> Bool {
+        stale || fetchedDate.map { now.timeIntervalSince($0) >= 900 } ?? true
+    }
+
     public func nextRace(at now: Date) -> RaceWeekend? {
         races.filter { !$0.isPast(at: now) }.min { $0.round < $1.round }
     }
@@ -51,11 +57,7 @@ public struct ScheduledSession: Codable, Identifiable, Sendable {
     public let start: String?
 
     public var startDate: Date? {
-        guard let start else { return nil }
-        let parser = ISO8601DateFormatter()
-        if let parsed = parser.date(from: start) { return parsed }
-        parser.formatOptions.insert(.withFractionalSeconds)
-        return parser.date(from: start)
+        start.flatMap(parseScheduleDate)
     }
 
     public func calendarDate(timeZone: TimeZone) -> Date? {
@@ -84,4 +86,11 @@ public struct ScheduledSession: Codable, Identifiable, Sendable {
         formatter.timeStyle = .short
         return formatter.string(from: startDate)
     }
+}
+
+private func parseScheduleDate(_ value: String) -> Date? {
+    let parser = ISO8601DateFormatter()
+    if let date = parser.date(from: value) { return date }
+    parser.formatOptions.insert(.withFractionalSeconds)
+    return parser.date(from: value)
 }

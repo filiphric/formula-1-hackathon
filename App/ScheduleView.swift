@@ -67,8 +67,8 @@ struct ScheduleView: View {
                     Text("\(schedule.source) · Calendar data, subject to change")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                let fetched = ISO8601DateFormatter().date(from: schedule.fetchedAt)
-                let stale = schedule.stale || fetched.map { now.timeIntervalSince($0) > 900 } ?? true
+                let fetched = schedule.fetchedDate
+                let stale = schedule.isStale(at: now)
                 if stale && schedule.mode != "demo" {
                     Label("Saved schedule · May be out of date. Refresh to check for changes.", systemImage: "clock.badge.exclamationmark")
                         .font(.callout).foregroundStyle(.orange)
