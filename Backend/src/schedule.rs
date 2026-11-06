@@ -182,7 +182,8 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
                     (Some(a), Some(b)) => a.cmp(b),
                     (Some(_), None) => std::cmp::Ordering::Less,
                     (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (None, None) => a.name.cmp(&b.name),
+                    // Stable sort retains the known session sequence when both times are TBC.
+                    (None, None) => std::cmp::Ordering::Equal,
                 })
         });
         races.push(Weekend {
@@ -193,7 +194,19 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
             sessions,
         });
     }
-    races.sort_by_key(|race| race.round);
+    races.sort_by(|a, b| {
+        let a_date = a
+            .sessions
+            .iter()
+            .find(|s| s.name == "Race")
+            .map(|s| s.date.as_str());
+        let b_date = b
+            .sessions
+            .iter()
+            .find(|s| s.name == "Race")
+            .map(|s| s.date.as_str());
+        a_date.cmp(&b_date).then(a.round.cmp(&b.round))
+    });
     Ok(Schedule {
         season: year,
         mode: "calendar".into(),
@@ -345,6 +358,52 @@ mod tests {
             "Sprint":{"date":"2026-03-14","time":"03:00:00Z"},
             "Qualifying":{"date":"2026-03-14"}
         }]}}});
+        let mut untimed = value.clone();
+        for key in [
+            "",
+            "FirstPractice",
+            "SprintQualifying",
+            "Sprint",
+            "Qualifying",
+        ] {
+            let race = &mut untimed["MRData"]["RaceTable"]["Races"][0];
+            let record = if key.is_empty() { race } else { &mut race[key] };
+            record["date"] = json!("2026-03-15");
+            record["time"] = Value::Null;
+        }
+        let unknown = normalize(2026, &untimed).unwrap();
+        assert_eq!(
+            unknown.races[0]
+                .sessions
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Practice 1",
+                "Sprint qualifying",
+                "Sprint",
+                "Qualifying",
+                "Race"
+            ]
+        );
+        let mut rescheduled = value.clone();
+        let mut later = rescheduled["MRData"]["RaceTable"]["Races"][0].clone();
+        later["round"] = json!("1");
+        later["date"] = json!("2026-12-01");
+        rescheduled["MRData"]["RaceTable"]["Races"]
+            .as_array_mut()
+            .unwrap()
+            .insert(0, later);
+        rescheduled["MRData"]["total"] = json!("2");
+        assert_eq!(
+            normalize(2026, &rescheduled)
+                .unwrap()
+                .races
+                .iter()
+                .map(|r| r.round)
+                .collect::<Vec<_>>(),
+            [2, 1]
+        );
         let schedule = normalize(2026, &value).unwrap();
         let sessions = &schedule.races[0].sessions;
         assert_eq!(

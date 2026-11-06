@@ -25,7 +25,9 @@ public struct RaceSchedule: Codable, Sendable {
     }
 
     public func nextRace(at now: Date) -> RaceWeekend? {
-        races.filter { !$0.isPast(at: now) }.min { $0.round < $1.round }
+        races.filter { !$0.isPast(at: now) }.min {
+            ($0.raceDate ?? .distantFuture) < ($1.raceDate ?? .distantFuture)
+        }
     }
 
     public static func endpoint(from timingEndpoint: String, season: Int) -> URL? {
@@ -48,6 +50,11 @@ public struct RaceWeekend: Codable, Identifiable, Sendable {
     public let circuit: String
     public let country: String
     public let sessions: [ScheduledSession]
+
+    public var raceDate: Date? {
+        guard let race = sessions.first(where: { $0.name == "Race" }) else { return nil }
+        return race.startDate ?? race.calendarDate(timeZone: .autoupdatingCurrent)
+    }
 
     public func isPast(at now: Date, timeZone: TimeZone = .autoupdatingCurrent) -> Bool {
         guard let race = sessions.first(where: { $0.name == "Race" }) else { return false }

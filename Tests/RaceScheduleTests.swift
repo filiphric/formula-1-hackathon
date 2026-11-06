@@ -96,3 +96,13 @@ private func instant(_ value: String) -> Date {
     connection.connect()
     #expect(connection.activeEndpoint == "wss://second.example/formula/live")
 }
+
+@Test func rescheduledRaceUsesDateInsteadOfRoundForNextRace() throws {
+    let original = try fixture()
+    let postponed = RaceWeekend(round: 1, name: "Postponed Grand Prix", circuit: "Sample", country: "Sample", sessions: [
+        ScheduledSession(name: "Race", date: "2026-12-01", start: "2026-12-01T14:00:00Z")
+    ])
+    let schedule = RaceSchedule(season: 2026, mode: "calendar", source: "Sample", fetchedAt: original.fetchedAt,
+                                stale: false, races: [postponed, original.races[1]])
+    #expect(schedule.nextRace(at: instant("2026-11-01T00:00:00Z"))?.round == 2)
+}
