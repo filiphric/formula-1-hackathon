@@ -16,11 +16,17 @@ struct FormulaLiveApp: App {
 private struct RootView: View {
     @AppStorage("serverEndpoint") private var endpoint = "ws://localhost:8787/live"
 
+    @State private var connection = ServerConnection(endpoint: "")
+
     var body: some View {
         TabView {
-            DashboardView().tabItem { Label("Live timing", systemImage: "flag.checkered") }
-            ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))
+            DashboardView(connection: $connection).tabItem { Label("Live timing", systemImage: "flag.checkered") }
+            ScheduleView(endpoint: connection.activeEndpoint)
                 .tabItem { Label("Schedule", systemImage: "calendar") }
         }.tint(.red)
+        .task {
+            if connection.activeEndpoint.isEmpty { connection = ServerConnection(endpoint: endpoint) }
+        }
+        .onChange(of: connection.activeEndpoint) { _, value in endpoint = value }
     }
 }

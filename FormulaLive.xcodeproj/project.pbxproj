@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		25F3BF3448627006D20C70A7 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB4009AC0DE0B45929ED0A0 /* DashboardView.swift */; };
+		2BD0ACD880067E69075F13EE /* ServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE61960612C66304F9AD7DA7 /* ServerConnection.swift */; };
 		4F74F5041D4934ACD47744AA /* TimingSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7192FDEA907E8CD17CD69603 /* TimingSnapshot.swift */; };
 		54167C421B60FEB51DE7C0FC /* RaceSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */; };
 		7B78516057A02DB110E15BAA /* TimingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */; };
@@ -24,6 +25,7 @@
 		7192FDEA907E8CD17CD69603 /* TimingSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingSnapshot.swift; path = Core/TimingSnapshot.swift; sourceTree = "<group>"; };
 		8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FormulaLiveApp.swift; path = App/FormulaLiveApp.swift; sourceTree = "<group>"; };
 		8C4CA2E5D921E732A18AA764 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS14.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		AE61960612C66304F9AD7DA7 /* ServerConnection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ServerConnection.swift; path = Core/ServerConnection.swift; sourceTree = "<group>"; };
 		BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleStore.swift; path = App/ScheduleStore.swift; sourceTree = "<group>"; };
 		C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingStore.swift; path = App/TimingStore.swift; sourceTree = "<group>"; };
 		DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleView.swift; path = App/ScheduleView.swift; sourceTree = "<group>"; };
@@ -75,6 +77,7 @@
 				BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */,
 				DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */,
 				0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */,
+				AE61960612C66304F9AD7DA7 /* ServerConnection.swift */,
 			);
 			name = Sources;
 			sourceTree = "<group>";
@@ -158,6 +161,7 @@
 				972BEB3745BDDB355888A1C2 /* ScheduleStore.swift in Sources */,
 				ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */,
 				54167C421B60FEB51DE7C0FC /* RaceSchedule.swift in Sources */,
+				2BD0ACD880067E69075F13EE /* ServerConnection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

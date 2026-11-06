@@ -2,8 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @State private var store = TimingStore()
-    @AppStorage("serverEndpoint") private var endpoint = "ws://localhost:8787/live"
-    @State private var activeEndpoint = ""
+    @Binding var connection: ServerConnection
     @State private var showingSettings = false
     private let accent = Color(red: 1, green: 0.22, blue: 0.18)
 
@@ -34,28 +33,30 @@ struct DashboardView: View {
             .background(Color(red: 0.045, green: 0.05, blue: 0.065))
             .navigationTitle("Formula Live")
             .toolbar {
-                Button("Connection", systemImage: "network") { showingSettings = true }
+                Button("Connection", systemImage: "network") {
+                    connection.beginEditing()
+                    showingSettings = true
+                }
             }
             .sheet(isPresented: $showingSettings) {
                 VStack(alignment: .leading, spacing: 20) {
                     Text("Timing server").font(.title2.bold())
                     Text("Use localhost on your Mac or iOS Simulator. On an iPhone, use your Mac’s local network address.")
                         .font(.callout).foregroundStyle(.secondary)
-                    TextField("ws://localhost:8787/live", text: $endpoint)
+                    TextField("ws://localhost:8787/live", text: $connection.draftEndpoint)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                     Text("OpenF1 credentials stay on the backend.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button("Connect") {
-                        activeEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+                        connection.connect()
                         showingSettings = false
                     }.buttonStyle(.borderedProminent).tint(accent)
                 }.padding(28).frame(minWidth: 300, idealWidth: 440)
             }
-            .task { activeEndpoint = endpoint }
-            .task(id: activeEndpoint) {
-                guard !activeEndpoint.isEmpty else { return }
-                await store.run(endpoint: activeEndpoint)
+            .task(id: connection.activeEndpoint) {
+                guard !connection.activeEndpoint.isEmpty else { return }
+                await store.run(endpoint: connection.activeEndpoint)
             }
         }
     }

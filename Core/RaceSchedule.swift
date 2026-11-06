@@ -33,7 +33,8 @@ public struct RaceSchedule: Codable, Sendable {
               let scheme = components.scheme?.lowercased(), ["ws", "wss"].contains(scheme),
               components.host != nil, components.user == nil, components.password == nil else { return nil }
         components.scheme = scheme == "wss" ? "https" : "http"
-        components.path = "/schedule/\(season)"
+        let prefix = components.percentEncodedPath.split(separator: "/").dropLast().joined(separator: "/")
+        components.percentEncodedPath = (prefix.isEmpty ? "" : "/" + prefix) + "/schedule/\(season)"
         components.query = nil
         components.fragment = nil
         return components.url

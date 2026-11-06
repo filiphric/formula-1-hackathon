@@ -28,7 +28,11 @@ struct ScheduleView: View {
                         ForEach(["All", "Upcoming", "Past"], id: \.self) { Text($0).tag($0) }
                     }.pickerStyle(.segmented)
                     if store.loading { ProgressView("Loading season…").frame(maxWidth: .infinity).padding(40) }
-                    if let error = store.error {
+                    if let error = store.error, store.schedule != nil {
+                        Label("Refresh failed · Showing saved schedule. \(error)", systemImage: "wifi.exclamationmark")
+                            .font(.callout).foregroundStyle(.orange)
+                    }
+                    if let error = store.error, store.schedule == nil {
                         ContentUnavailableView {
                             Label("Schedule unavailable", systemImage: "wifi.exclamationmark")
                         } description: { Text(error) } actions: {
@@ -46,6 +50,7 @@ struct ScheduleView: View {
                 Button("Refresh", systemImage: "arrow.clockwise") { refresh += 1 }.disabled(store.loading)
             }
             .task(id: "\(endpoint)|\(season)|\(refresh)") {
+                guard !endpoint.isEmpty else { return }
                 await store.load(endpoint: endpoint, season: season)
             }
         }
@@ -67,7 +72,7 @@ struct ScheduleView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 let fetched = schedule.fetchedDate
-                let stale = schedule.isStale(at: now)
+                let stale = store.refreshFailed || schedule.isStale(at: now)
                 if stale && schedule.mode != "demo" {
                     Label("Saved schedule · May be out of date. Refresh to check for changes.", systemImage: "clock.badge.exclamationmark")
                         .font(.callout).foregroundStyle(.orange)

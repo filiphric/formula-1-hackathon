@@ -79,3 +79,20 @@ private func instant(_ value: String) -> Date {
     #expect(RaceSchedule.currentSeason(at: after) == 2027)
     #expect(RaceSchedule.availableSeasons(at: after).first == 2028)
 }
+
+@Test func scheduleEndpointPreservesDeploymentPrefix() {
+    #expect(RaceSchedule.endpoint(from: "wss://example.com/formula/live", season: 2026)?.absoluteString == "https://example.com/formula/schedule/2026")
+    #expect(RaceSchedule.endpoint(from: "wss://example.com/a%20b/live/?old=1", season: 2025)?.absoluteString == "https://example.com/a%20b/schedule/2025")
+}
+
+@Test func editingServerDoesNotChangeConfirmedConnection() {
+    var connection = ServerConnection(endpoint: "ws://first.example/live")
+    connection.beginEditing()
+    connection.draftEndpoint = "ws://partial"
+    #expect(connection.activeEndpoint == "ws://first.example/live")
+    connection.beginEditing() // Reopening a dismissed sheet discards its abandoned draft.
+    #expect(connection.draftEndpoint == "ws://first.example/live")
+    connection.draftEndpoint = "  wss://second.example/formula/live  "
+    connection.connect()
+    #expect(connection.activeEndpoint == "wss://second.example/formula/live")
+}

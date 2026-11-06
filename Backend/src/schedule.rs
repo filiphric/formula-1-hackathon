@@ -175,7 +175,16 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
                 start,
             });
         }
-        sessions.sort_by(|a, b| a.date.cmp(&b.date).then(a.start.cmp(&b.start)));
+        sessions.sort_by(|a, b| {
+            a.date
+                .cmp(&b.date)
+                .then_with(|| match (&a.start, &b.start) {
+                    (Some(a), Some(b)) => a.cmp(b),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => a.name.cmp(&b.name),
+                })
+        });
         races.push(Weekend {
             round: text(&race["round"])?.parse()?,
             name: text(&race["raceName"])?,
@@ -343,14 +352,14 @@ mod tests {
             [
                 "Practice 1",
                 "Sprint qualifying",
-                "Qualifying",
                 "Sprint",
+                "Qualifying",
                 "Race"
             ]
         );
         assert_eq!(sessions[1].start.as_deref(), Some("2026-03-13T07:30:00Z"));
-        assert!(sessions[2].start.is_none());
-        assert_eq!(sessions[2].date, "2026-03-14");
+        assert!(sessions[3].start.is_none());
+        assert_eq!(sessions[3].date, "2026-03-14");
         assert!(normalize(2025, &value).is_err());
         let mut partial = value;
         partial["MRData"]["total"] = json!("2");
