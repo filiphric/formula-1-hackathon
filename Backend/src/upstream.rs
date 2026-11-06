@@ -138,6 +138,67 @@ impl OpenF1 {
     }
 }
 
+/// Verify paid access without exposing credentials or requiring live timing events.
+pub async fn check_live(config: Config) -> Result<()> {
+    let api = OpenF1::new(config)?;
+    let token = api.authenticate().await?;
+    api.get("sessions", &api.config.session_key).await?;
+    let options = mqtt_options(&api.config.username, &token.value);
+    tokio::time::timeout(Duration::from_secs(30), verify_mqtt(options))
+        .await
+        .context("OpenF1 MQTT check timed out after 30 seconds")??;
+    Ok(())
+}
+
+fn mqtt_options(username: &str, token: &str) -> MqttOptions {
+    let client_id = format!(
+        "formula-live-{}-{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_millis()
+    );
+    let mut options = MqttOptions::new(client_id, "mqtt.openf1.org", 8883);
+    options.set_transport(Transport::tls_with_default_config());
+    options.set_credentials(username, token);
+    options.set_keep_alive(Duration::from_secs(30));
+    options
+}
+
+fn timing_subscriptions() -> [SubscribeFilter; 6] {
+    TOPICS.map(|topic| SubscribeFilter::new(format!("v1/{topic}"), QoS::AtMostOnce))
+}
+
+fn verify_subscription(ack: &rumqttc::SubAck) -> Result<()> {
+    if ack.return_codes.len() != TOPICS.len()
+        || ack
+            .return_codes
+            .iter()
+            .any(|code| matches!(code, rumqttc::SubscribeReasonCode::Failure))
+    {
+        bail!("OpenF1 MQTT subscription was rejected or incomplete");
+    }
+    Ok(())
+}
+
+async fn verify_mqtt(options: MqttOptions) -> Result<()> {
+    let (client, mut events) = AsyncClient::new(options, 16);
+    loop {
+        match events
+            .poll()
+            .await
+            .context("OpenF1 MQTT access check failed")?
+        {
+            Event::Incoming(Packet::ConnAck(_)) => {
+                client.subscribe_many(timing_subscriptions()).await?;
+            }
+            Event::Incoming(Packet::SubAck(ack)) => {
+                verify_subscription(&ack)?;
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
+}
+
 pub async fn run(config: Config, state: SharedState) {
     let api = match OpenF1::new(config) {
         Ok(api) => Arc::new(api),
@@ -226,15 +287,7 @@ async fn mqtt_connection(
     retry: &mut u64,
 ) -> Result<()> {
     let token = api.authenticate().await?;
-    let client_id = format!(
-        "formula-live-{}-{}",
-        std::process::id(),
-        chrono::Utc::now().timestamp_millis()
-    );
-    let mut options = MqttOptions::new(client_id, "mqtt.openf1.org", 8883);
-    options.set_transport(Transport::tls_with_default_config());
-    options.set_credentials(&api.config.username, &token.value);
-    options.set_keep_alive(Duration::from_secs(30));
+    let options = mqtt_options(&api.config.username, &token.value);
     let (client, mut events) = AsyncClient::new(options, 16);
     loop {
         tokio::select! {
@@ -246,12 +299,10 @@ async fn mqtt_connection(
                 Event::Incoming(Packet::ConnAck(_)) => {
                     *retry = 2;
                     state.write().await.upstream = "subscribing".into();
-                    client.subscribe_many(TOPICS.map(|topic| SubscribeFilter::new(format!("v1/{topic}"), QoS::AtMostOnce))).await?;
+                    client.subscribe_many(timing_subscriptions()).await?;
                 },
                 Event::Incoming(Packet::SubAck(ack)) => {
-                    if ack.return_codes.iter().any(|code| matches!(code, rumqttc::SubscribeReasonCode::Failure)) {
-                        bail!("OpenF1 MQTT subscription was rejected");
-                    }
+                    verify_subscription(&ack)?;
                     state.write().await.upstream = "connected".into();
                     let _ = resync.try_send(());
                 },
@@ -287,6 +338,92 @@ mod tests {
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::net::TcpListener;
+
+    #[test]
+    fn mqtt_uses_access_token_with_tls_and_documented_broker() {
+        let options = mqtt_options("paid@example.com", "oauth-token");
+        assert_eq!(options.broker_address(), ("mqtt.openf1.org".into(), 8883));
+        assert_eq!(
+            options.credentials(),
+            Some(("paid@example.com".into(), "oauth-token".into()))
+        );
+        assert!(matches!(options.transport(), Transport::Tls(_)));
+    }
+
+    #[tokio::test]
+    async fn mqtt_check_requires_every_timing_subscription() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpStream;
+
+        async fn packet(socket: &mut TcpStream) -> (u8, Vec<u8>) {
+            let header = socket.read_u8().await.unwrap();
+            let mut length = 0usize;
+            let mut multiplier = 1;
+            loop {
+                let byte = socket.read_u8().await.unwrap();
+                length += usize::from(byte & 127) * multiplier;
+                if byte & 128 == 0 {
+                    break;
+                }
+                multiplier *= 128;
+                assert!(multiplier <= 128 * 128 * 128);
+            }
+            assert!(length <= 4096);
+            let mut bytes = vec![0; length];
+            socket.read_exact(&mut bytes).await.unwrap();
+            (header, bytes)
+        }
+
+        // Six grants succeed; a refusal or an incomplete acknowledgement must fail.
+        for (grants, expected_success) in [
+            (vec![0; 6], true),
+            (vec![0, 0, 0, 0, 0, 128], false),
+            (vec![0; 5], false),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let broker = tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                assert_eq!(packet(&mut socket).await.0, 0x10);
+                socket.write_all(&[0x20, 2, 0, 0]).await.unwrap();
+                let (kind, subscribe) = packet(&mut socket).await;
+                assert_eq!(kind, 0x82);
+                let mut filters = Vec::new();
+                let mut cursor = 2;
+                while cursor < subscribe.len() {
+                    let length =
+                        u16::from_be_bytes([subscribe[cursor], subscribe[cursor + 1]]) as usize;
+                    cursor += 2;
+                    filters.push(
+                        String::from_utf8(subscribe[cursor..cursor + length].to_vec()).unwrap(),
+                    );
+                    cursor += length;
+                    assert_eq!(subscribe[cursor], 0); // QoS 0
+                    cursor += 1;
+                }
+                assert_eq!(
+                    filters,
+                    [
+                        "v1/drivers",
+                        "v1/position",
+                        "v1/intervals",
+                        "v1/laps",
+                        "v1/stints",
+                        "v1/race_control"
+                    ]
+                );
+                let mut ack = vec![0x90, (2 + grants.len()) as u8, subscribe[0], subscribe[1]];
+                ack.extend(grants);
+                socket.write_all(&ack).await.unwrap();
+            });
+            let options = MqttOptions::new("test-check", "127.0.0.1", port);
+            let result = tokio::time::timeout(Duration::from_secs(3), verify_mqtt(options))
+                .await
+                .unwrap();
+            broker.await.unwrap();
+            assert_eq!(result.is_ok(), expected_success);
+        }
+    }
 
     #[tokio::test]
     async fn authentication_encodes_credentials_caches_tokens_and_renews() {

@@ -24,12 +24,21 @@ contact OpenF1 or replay a real race.
 
 ```sh
 cd Backend
-cp .env.example .env
+cp -n .env.example .env
+chmod 600 .env
 ```
 
-Edit `.env` locally with your OpenF1 account username and password, stop the demo,
-and run `cargo run --locked`. `.env` is ignored by Git. Never put these credentials in the
-Swift app or commit them. Your paid account must have live access enabled.
+Edit `.env` locally with the username and password issued for your paid OpenF1 access.
+First verify authentication, REST access and all timing MQTT subscriptions:
+
+```sh
+cargo run --locked -- --check-live
+```
+
+This exits successfully only after all checks pass; it never prints credentials or
+tokens. It works between race sessions and times out if the MQTT broker is unreachable.
+Then stop the demo and run `cargo run --locked` to serve live data. `.env` is ignored
+by Git. Never put these credentials in the Swift app or commit them. Your paid account must have live access enabled.
 
 The backend exchanges credentials for an OAuth token, renews it before expiry,
 loads a REST snapshot, then subscribes to `drivers`, `position`, `intervals`, `laps`,
