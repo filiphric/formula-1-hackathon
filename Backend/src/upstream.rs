@@ -120,7 +120,7 @@ impl OpenF1 {
                 .cloned()
                 .context("No OpenF1 session found")?,
         )
-        .context("Invalid OpenF1 session response")
+        .map_err(Into::into)
     }
 
     async fn get(&self, endpoint: &str, session_key: &str) -> Result<Vec<Value>> {
@@ -390,7 +390,7 @@ mod tests {
             (json!([]), "No OpenF1 session found"),
             (
                 json!([{"session_key": 999999999}]),
-                "Invalid OpenF1 session response",
+                "missing field `session_name`",
             ),
         ] {
             let (api, server) = session_api(response, "999999999").await;
