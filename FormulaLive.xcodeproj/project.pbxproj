@@ -14,6 +14,7 @@
 		8B1A9B113EA53A1525154CB6 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8C4CA2E5D921E732A18AA764 /* Foundation.framework */; };
 		972BEB3745BDDB355888A1C2 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */; };
 		AF45B95BA68031D19688E706 /* FormulaLiveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */; };
+		C1368FF46609889F56604AD3 /* TrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED500EE61E80AF8A96A69188 /* TrackMapView.swift */; };
 		ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */; };
 /* End PBXBuildFile section */
 
@@ -27,6 +28,7 @@
 		BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleStore.swift; path = App/ScheduleStore.swift; sourceTree = "<group>"; };
 		C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingStore.swift; path = App/TimingStore.swift; sourceTree = "<group>"; };
 		DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleView.swift; path = App/ScheduleView.swift; sourceTree = "<group>"; };
+		ED500EE61E80AF8A96A69188 /* TrackMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackMapView.swift; path = App/TrackMapView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +77,7 @@
 				BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */,
 				DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */,
 				0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */,
+				ED500EE61E80AF8A96A69188 /* TrackMapView.swift */,
 			);
 			name = Sources;
 			sourceTree = "<group>";
@@ -158,6 +161,7 @@
 				972BEB3745BDDB355888A1C2 /* ScheduleStore.swift in Sources */,
 				ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */,
 				54167C421B60FEB51DE7C0FC /* RaceSchedule.swift in Sources */,
+				C1368FF46609889F56604AD3 /* TrackMapView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

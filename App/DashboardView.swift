@@ -17,6 +17,7 @@ struct DashboardView: View {
                             .font(.callout).foregroundStyle(.orange)
                     }
                     if let snapshot = store.snapshot {
+                        TrackMapView(snapshot: snapshot, connected: store.connected)
                         timingBoard(snapshot)
                         raceControl(snapshot)
                     } else {
@@ -102,7 +103,7 @@ struct DashboardView: View {
                 HStack(spacing: 12) {
                     Text(driver.position.map(String.init) ?? "—")
                         .font(.title3.bold().monospacedDigit()).frame(width: 30)
-                    RoundedRectangle(cornerRadius: 2).fill(teamColor(driver.color))
+                    RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
                         .frame(width: 4, height: 34)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(driver.acronym).font(.headline)
@@ -139,10 +140,4 @@ struct DashboardView: View {
         }
     }
 
-    private func teamColor(_ hex: String) -> Color {
-        guard let value = UInt(hex, radix: 16) else { return .gray }
-        return Color(red: Double((value >> 16) & 255) / 255,
-                     green: Double((value >> 8) & 255) / 255,
-                     blue: Double(value & 255) / 255)
-    }
 }
