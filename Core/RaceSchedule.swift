@@ -21,7 +21,7 @@ public struct RaceSchedule: Codable, Sendable {
     public var fetchedDate: Date? { parseScheduleDate(fetchedAt) }
 
     public func isStale(at now: Date) -> Bool {
-        stale || fetchedDate.map { now.timeIntervalSince($0) >= 900 } ?? true
+        stale || fetchedDate.map { !(0..<900).contains(now.timeIntervalSince($0)) } ?? true
     }
 
     public func nextRace(at now: Date) -> RaceWeekend? {

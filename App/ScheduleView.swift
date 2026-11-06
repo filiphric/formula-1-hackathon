@@ -50,7 +50,6 @@ struct ScheduleView: View {
                 Button("Refresh", systemImage: "arrow.clockwise") { refresh += 1 }.disabled(store.loading)
             }
             .task(id: "\(endpoint)|\(season)|\(refresh)") {
-                guard !endpoint.isEmpty else { return }
                 await store.load(endpoint: endpoint, season: season)
             }
         }

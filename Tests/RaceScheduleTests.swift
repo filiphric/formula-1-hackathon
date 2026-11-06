@@ -66,6 +66,7 @@ private func instant(_ value: String) -> Date {
     let schedule = try fixture()
     let fetched = try #require(schedule.fetchedDate)
     #expect(abs(fetched.timeIntervalSince(instant("2026-11-06T15:00:00Z")) - 0.123456) < 0.001)
+    #expect(schedule.isStale(at: fetched.addingTimeInterval(-1)))
     #expect(!schedule.isStale(at: fetched.addingTimeInterval(899)))
     #expect(schedule.isStale(at: fetched.addingTimeInterval(900)))
 }

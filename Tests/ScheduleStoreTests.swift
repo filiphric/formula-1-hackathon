@@ -31,3 +31,14 @@ private actor CalendarResponses {
     #expect(!store.refreshFailed)
     #expect(store.error != nil)
 }
+
+@Test @MainActor func clearingConfirmedServerClearsThePreviousCalendar() async throws {
+    let url = Bundle.module.url(forResource: "schedule", withExtension: "json", subdirectory: "Fixtures")!
+    let responses = CalendarResponses(data: try Data(contentsOf: url))
+    let store = ScheduleStore(fetch: { try await responses.next($0) })
+    await store.load(endpoint: "ws://first.example/live", season: 2026)
+    #expect(store.schedule != nil)
+    await store.load(endpoint: "", season: 2026)
+    #expect(store.schedule == nil)
+    #expect(store.error != nil)
+}

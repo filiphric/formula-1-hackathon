@@ -86,7 +86,7 @@ impl Calendar {
         let mut entry = entry.lock().await;
         if let Some(saved) = &entry.schedule {
             let age = chrono::DateTime::parse_from_rfc3339(&saved.fetched_at)?;
-            if Utc::now().signed_duration_since(age).num_seconds() < 900 {
+            if (0..900).contains(&Utc::now().signed_duration_since(age).num_seconds()) {
                 return Ok(saved.clone());
             }
         }
@@ -351,6 +351,24 @@ mod tests {
             encoded["races"][1]["sessions"][1]["name"],
             "Sprint qualifying"
         );
+    }
+
+    #[tokio::test]
+    async fn future_fetch_time_is_stale_after_a_clock_rollback() {
+        let calendar = Calendar {
+            base_url: "http://127.0.0.1:0".into(),
+            ..Calendar::default()
+        };
+        let mut saved = demo_schedule(2026);
+        saved.fetched_at = (Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
+        assert!(calendar.load(2026, false).await.unwrap().stale);
     }
 
     #[test]
