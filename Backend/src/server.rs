@@ -77,7 +77,11 @@ async fn stream(mut socket: WebSocket, mut state: AppState) {
                 break;
             }
             _ = interval.tick() => {
-                let snapshot = state.timing.read().await.snapshot();
+                let snapshot = {
+                    let mut timing = state.timing.write().await;
+                    timing.animate_demo();
+                    timing.snapshot()
+                };
                 let Ok(payload) = serde_json::to_string(&snapshot) else { break };
                 // Disconnect slow clients rather than growing an unbounded send queue.
                 match tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(payload.into()))).await {

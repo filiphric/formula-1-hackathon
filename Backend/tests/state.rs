@@ -125,3 +125,66 @@ fn rest_bootstrap_does_not_overwrite_live_lap_corrections() {
     );
     assert_eq!(state.snapshot().drivers[0].lap_time, Some(92.5));
 }
+
+#[test]
+fn locations_are_timestamped_ordered_validated_and_session_scoped() {
+    let mut state = state();
+    let sample = |date: &str, x: i64, y: i64| json!({"session_key":42,"driver_number":4,"date":date,"x":x,"y":y});
+    state.apply("location", sample("2026-11-06T12:00:02Z", 300, -100));
+    state.apply("location", sample("2026-11-06T12:00:01Z", 200, -200));
+    state.apply("location", json!({"session_key":42,"driver_number":4,"date":"2026-11-06T12:00:01Z","x":700,"y":700,"_id":99999}));
+    let snapshot = state.snapshot();
+    let location = snapshot.drivers[0].location.as_ref().unwrap();
+    assert_eq!((location.x, location.y), (300.0, -100.0));
+    assert_eq!(location.date, "2026-11-06T12:00:02Z");
+    state.apply("location", sample("2026-11-06T12:00:03Z", 0, 0));
+    state.apply("location", sample("invalid", 500, 500));
+    state.apply(
+        "location",
+        json!({"session_key":99,"driver_number":4,"date":"2026-11-06T12:00:04Z","x":900,"y":900}),
+    );
+    state.apply(
+        "location",
+        json!({"session_key":42,"driver_number":4,"date":"2026-11-06T12:00:04Z","x":900}),
+    );
+    assert_eq!(
+        state.snapshot().drivers[0].location.as_ref().unwrap().x,
+        300.0
+    );
+    state.track = Some(formula_live_backend::state::TrackLayout {
+        source: "test".into(),
+        points: vec![],
+    });
+    state.set_session(Session {
+        session_key: 43,
+        session_name: "Qualifying".into(),
+        circuit_short_name: "Other circuit".into(),
+        date_start: "".into(),
+        date_end: "".into(),
+    });
+    assert!(state.snapshot().track.is_none());
+    assert!(state.snapshot().drivers.is_empty());
+}
+
+#[test]
+fn location_contract_is_additive_and_demo_positions_move_on_its_layout() {
+    let mut demo = TimingState::demo();
+    demo.animate_demo();
+    let first = demo.snapshot();
+    assert_eq!(first.track.as_ref().unwrap().points.len(), 181);
+    assert!(first.track.as_ref().unwrap().source.contains("Fictional"));
+    for driver in &first.drivers {
+        let location = driver.location.as_ref().unwrap();
+        assert!(location.x.abs() <= 3750.0);
+        assert!(location.y.abs() <= 2200.0);
+        assert!(chrono::DateTime::parse_from_rfc3339(&location.date).is_ok());
+    }
+    let mut legacy = serde_json::to_value(first).unwrap();
+    legacy.as_object_mut().unwrap().remove("track");
+    for driver in legacy["drivers"].as_array_mut().unwrap() {
+        driver.as_object_mut().unwrap().remove("location");
+    }
+    let decoded: formula_live_backend::state::Snapshot = serde_json::from_value(legacy).unwrap();
+    assert!(decoded.track.is_none());
+    assert!(decoded.drivers.iter().all(|d| d.location.is_none()));
+}

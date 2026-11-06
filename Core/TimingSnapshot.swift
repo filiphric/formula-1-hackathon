@@ -7,6 +7,7 @@ public struct TimingSnapshot: Codable, Sendable {
     public let session: RaceSession?
     public let drivers: [TimingDriver]
     public let messages: [RaceMessage]
+    public let track: TrackLayout?
 
     public static func decode(_ data: Data) throws -> Self {
         try JSONDecoder().decode(Self.self, from: data)
@@ -32,6 +33,7 @@ public struct TimingDriver: Codable, Identifiable, Sendable {
     public let lap: Int?
     public let lapTime: Double?
     public let compound: String?
+    public let location: DriverLocation?
 
     public var formattedLap: String {
         guard let lapTime, lapTime.isFinite, lapTime > 0 else { return "—" }
@@ -46,4 +48,77 @@ public struct RaceMessage: Codable, Identifiable, Sendable {
     public let date: String
     public let message: String
     public let flag: String?
+}
+
+public struct TrackPoint: Codable, Sendable {
+    public let x: Double
+    public let y: Double
+}
+
+public struct DriverLocation: Codable, Sendable {
+    public let x: Double
+    public let y: Double
+    public let date: String
+
+    public var timestamp: Date? { TrackLayout.parseDate(date) }
+    public func isStale(at now: Date) -> Bool {
+        guard let timestamp else { return true }
+        return now.timeIntervalSince(timestamp) > 10 || timestamp.timeIntervalSince(now) > 5
+    }
+}
+
+public struct TrackLayout: Codable, Sendable {
+    public let source: String
+    public let points: [TrackPoint]
+
+    public static func parseDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    public func projection(width: Double, height: Double) -> TrackProjection? {
+        TrackProjection(points: points, width: width, height: height)
+    }
+}
+
+public struct TrackProjection: Sendable {
+    private let minX: Double
+    private let maxY: Double
+    private let scale: Double
+    private let offsetX: Double
+    private let offsetY: Double
+
+    public init?(points: [TrackPoint], width: Double, height: Double) {
+        guard points.count >= 2, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              width.isFinite, height.isFinite, width > 64, height > 64,
+              let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
+              let minY = points.map(\.y).min(), let maxY = points.map(\.y).max(),
+              maxX > minX, maxY > minY else { return nil }
+        self.minX = minX
+        self.maxY = maxY
+        scale = min((width - 64) / (maxX - minX), (height - 64) / (maxY - minY))
+        offsetX = (width - (maxX - minX) * scale) / 2
+        offsetY = (height - (maxY - minY) * scale) / 2
+    }
+
+    public func project(x: Double, y: Double) -> TrackPoint? {
+        guard x.isFinite, y.isFinite else { return nil }
+        return TrackPoint(x: offsetX + (x - minX) * scale, y: offsetY + (maxY - y) * scale)
+    }
+}
+
+extension TimingSnapshot {
+    public func trackStatus(at now: Date, connected: Bool) -> String {
+        if mode == "demo" { return "DEMO · Simulated positions" }
+        guard connected, upstream == "connected" else { return "Disconnected · Last known positions" }
+        guard let session, let start = TrackLayout.parseDate(session.start),
+              let end = TrackLayout.parseDate(session.end) else { return "Session time unavailable" }
+        if now > end { return "Session ended · Last known positions" }
+        if now < start { return "Session has not started" }
+        let locations = drivers.compactMap(\.location)
+        if locations.isEmpty { return "Waiting for driver locations" }
+        if locations.allSatisfy({ $0.isStale(at: now) }) { return "Stale · No recent driver locations" }
+        return "LIVE · Driver locations"
+    }
 }

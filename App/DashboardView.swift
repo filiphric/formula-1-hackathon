@@ -17,6 +17,7 @@ struct DashboardView: View {
                             .font(.callout).foregroundStyle(.orange)
                     }
                     if let snapshot = store.snapshot {
+                        TrackMapView(snapshot: snapshot, connected: store.connected)
                         timingBoard(snapshot)
                         raceControl(snapshot)
                     } else {

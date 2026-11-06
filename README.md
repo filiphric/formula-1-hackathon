@@ -20,6 +20,27 @@ iOS Simulator, then Run. The default server is `ws://localhost:8787/live`.
 Demo is explicitly labelled and uses four fictional sample timing rows; it does not
 contact OpenF1 or replay a real race.
 
+## Live track view
+
+The **On track** card in Live timing plots numbered, team-colored driver markers on
+an approximate circuit outline. Select a driver from the picker or click a marker
+to highlight it. Race, practice and qualifying use the same active-session feed.
+The backend subscribes to OpenF1 `location` and bootstraps the last ten seconds of
+coordinates. Each driver retains its own sample timestamp; markers dim after ten
+seconds, and the view identifies disconnected, stale, future and ended sessions.
+Drivers without coordinates are listed as unavailable.
+
+The outline is a completed, non-out-lap location trace from the current session,
+with at most 600 points. It appears once a sufficiently complete timed lap is
+available and retries every minute while unavailable. Coordinates are approximate,
+not lane-level tracking. A new session clears both the outline and old locations.
+`track` and driver `location` are optional additions to the existing WebSocket
+contract; older snapshots still decode and display a waiting state.
+
+Demo mode animates four markers around an explicitly fictional circuit, without
+contacting OpenF1. It does not reproduce a real race. Live location delivery needs
+a paid OpenF1 connection and an active session.
+
 ## Schedule
 
 The **Schedule** tab shows each season from 2023 through next year, with All,
@@ -66,7 +87,7 @@ by Git. Never put these credentials in the Swift app or commit them. Your paid a
 
 The backend exchanges credentials for an OAuth token, renews it before expiry,
 loads a REST snapshot, then subscribes to `drivers`, `position`, `intervals`, `laps`,
-`stints`, and `race_control` via MQTT/TLS. It sends one normalized WebSocket snapshot
+`stints`, `race_control`, and `location` via MQTT/TLS. It sends one normalized WebSocket snapshot
 per second. Reconnection refreshes the REST snapshot to recover missed events.
 Older updates and updates from another session are ignored. It checks for a new
 latest session every minute. Set `SESSION_KEY` to pin a particular session.
@@ -136,7 +157,7 @@ bearer headers, token caching and renewal.
 
 Live authentication and delivery require your subscription credentials and a real
 session; demo tests cannot verify those. This initial slice does not yet include
-track maps, telemetry charts, historical timing browsing, radio playback, TV-delay controls,
+telemetry charts, historical timing browsing, radio playback, TV-delay controls,
 background notifications, app icons, or distribution signing.
 
 OpenF1 is unofficial. See [API docs](https://openf1.org/docs/),
