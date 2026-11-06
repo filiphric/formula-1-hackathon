@@ -47,6 +47,7 @@ final class ScheduleStore {
             var request = URLRequest(url: url)
             request.timeoutInterval = 25
             request.cachePolicy = .reloadIgnoringLocalCacheData
+            let requestStarted = ContinuousClock.now
             let (data, response) = try await fetch(request)
             try Task.checkCancellation()
             guard requestID == id else { return }
@@ -57,7 +58,7 @@ final class ScheduleStore {
             guard result.season == season else { throw URLError(.cannotParseResponse) }
             schedule = result
             loadedKey = key
-            validatedAt = .now
+            validatedAt = requestStarted
         } catch {
             if !Task.isCancelled && requestID == id {
                 refreshFailed = schedule != nil

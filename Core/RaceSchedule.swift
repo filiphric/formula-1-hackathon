@@ -7,6 +7,7 @@ public struct RaceSchedule: Codable, Sendable {
     public let fetchedAt: String
     public let stale: Bool
     public let races: [RaceWeekend]
+    public var expiresIn: TimeInterval? = nil
 
     public static func currentSeason(at now: Date = .now) -> Int {
         var calendar = Calendar(identifier: .gregorian)
@@ -23,7 +24,7 @@ public struct RaceSchedule: Codable, Sendable {
     public func isStale(elapsedSinceValidation elapsed: TimeInterval) -> Bool {
         // Backend freshness is authoritative at receipt; device/server wall clocks
         // need not agree. The client expires its view using elapsed time only.
-        stale || !(0..<900).contains(elapsed)
+        stale || elapsed < 0 || elapsed >= min(max(expiresIn ?? 0, 0), 900)
     }
 
     public func nextRace(at now: Date) -> RaceWeekend? {

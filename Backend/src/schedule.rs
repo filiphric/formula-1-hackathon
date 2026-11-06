@@ -18,6 +18,8 @@ pub struct Schedule {
     pub source: String,
     pub fetched_at: String,
     pub stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<u64>,
     pub races: Vec<Weekend>,
 }
 
@@ -57,6 +59,7 @@ impl CacheEntry {
     fn stale(&self) -> Result<Schedule> {
         let mut saved = self.schedule.clone().context("Calendar unavailable")?;
         saved.stale = true;
+        saved.expires_in = Some(0);
         Ok(saved)
     }
 }
@@ -86,8 +89,11 @@ impl Calendar {
         let mut entry = entry.lock().await;
         if let Some(saved) = &entry.schedule {
             let age = chrono::DateTime::parse_from_rfc3339(&saved.fetched_at)?;
-            if (0..900).contains(&Utc::now().signed_duration_since(age).num_seconds()) {
-                return Ok(saved.clone());
+            let age_seconds = Utc::now().signed_duration_since(age).num_seconds();
+            if (0..900).contains(&age_seconds) {
+                let mut cached = saved.clone();
+                cached.expires_in = Some(900 - age_seconds as u64);
+                return Ok(cached);
             }
         }
         if entry
@@ -175,23 +181,14 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
                 start,
             });
         }
-        // With incomplete times, retain the known F1 session sequence for that
-        // whole day. Comparing a mixture of timestamps and ordinal ranks would
-        // not form a consistent sort order.
-        let untimed_dates: std::collections::HashSet<_> = sessions
-            .iter()
-            .filter(|session| session.start.is_none())
-            .map(|session| session.date.clone())
-            .collect();
-        sessions.sort_by(|a, b| {
-            a.date.cmp(&b.date).then_with(|| {
-                if untimed_dates.contains(&a.date) {
-                    std::cmp::Ordering::Equal
-                } else {
-                    a.start.cmp(&b.start)
-                }
-            })
-        });
+        // Group days in calendar order while preserving the F1 session sequence.
+        // Reorder within a day only when every start time is published.
+        sessions.sort_by(|a, b| a.date.cmp(&b.date));
+        for day in sessions.chunk_by_mut(|a, b| a.date == b.date) {
+            if day.iter().all(|session| session.start.is_some()) {
+                day.sort_by(|a, b| a.start.cmp(&b.start));
+            }
+        }
         races.push(Weekend {
             round: text(&race["round"])?.parse()?,
             name: text(&race["raceName"])?,
@@ -219,6 +216,7 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
         source: "Jolpica F1".into(),
         fetched_at: Utc::now().to_rfc3339(),
         stale: false,
+        expires_in: Some(900),
         races,
     })
 }
@@ -265,6 +263,7 @@ fn demo_schedule(year: i32) -> Schedule {
         source: "Fictional sample calendar".into(),
         fetched_at: Utc::now().to_rfc3339(),
         stale: false,
+        expires_in: Some(900),
         races: vec![
             weekend(1, "Sample Grand Prix", 3, false),
             weekend(2, "Sample Sprint Weekend", 11, true),
@@ -351,6 +350,26 @@ mod tests {
             encoded["races"][1]["sessions"][1]["name"],
             "Sprint qualifying"
         );
+    }
+
+    #[tokio::test]
+    async fn warm_cache_reports_only_its_remaining_lifetime() {
+        let calendar = Calendar {
+            base_url: "http://127.0.0.1:0".into(),
+            ..Calendar::default()
+        };
+        let mut saved = demo_schedule(2026);
+        saved.fetched_at = (Utc::now() - chrono::Duration::seconds(870)).to_rfc3339();
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
+        let response = calendar.load(2026, false).await.unwrap();
+        assert!(!response.stale);
+        assert_eq!(response.expires_in, Some(30));
     }
 
     #[tokio::test]

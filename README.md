@@ -40,8 +40,10 @@ backend, showing a saved-data warning; changing server or season clears that vie
 Both tabs use the server confirmed with Connect, and prefixed deployment URLs
 (e.g. `/formula/live`) retain their prefix for calendar requests. Failed refreshes have a 30-second retry cooldown, and requests for one
 season do not block cached calendars for another. The app displays the source, fetch time and stale warning. Client expiration uses
-monotonic elapsed time since backend validation, so device/server clock skew
-does not label freshly validated calendars stale. Use Refresh to
+the backend's remaining cache lifetime (`expiresIn`) and monotonic elapsed time
+from the request start. Device/server clock skew does not label fresh calendars
+stale, and a warm server cache does not receive a new 15-minute window. Responses
+without a remaining lifetime are conservatively shown as stale. Use Refresh to
 check again after the cache interval. Restarting the backend clears this cache.
 
 `--demo` returns two explicitly fictional sample weekends per selected season,

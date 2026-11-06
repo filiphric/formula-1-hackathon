@@ -111,11 +111,20 @@ private func instant(_ value: String) -> Date {
 @Test func deviceServerClockSkewDoesNotMakeFreshCalendarStale() throws {
     let original = try fixture()
     let future = RaceSchedule(season: 2026, mode: "calendar", source: original.source,
-                              fetchedAt: "2099-01-01T00:00:00Z", stale: false, races: original.races)
+                              fetchedAt: "2099-01-01T00:00:00Z", stale: false, races: original.races, expiresIn: 900)
     #expect(!future.isStale(elapsedSinceValidation: 0))
     #expect(!future.isStale(elapsedSinceValidation: 899))
     #expect(future.isStale(elapsedSinceValidation: 900))
     let stale = RaceSchedule(season: 2026, mode: "calendar", source: original.source,
                              fetchedAt: future.fetchedAt, stale: true, races: original.races)
     #expect(stale.isStale(elapsedSinceValidation: 0))
+}
+
+@Test func warmServerCacheExpiresAtItsRemainingLifetime() throws {
+    var schedule = try fixture()
+    schedule.expiresIn = 30
+    #expect(!schedule.isStale(elapsedSinceValidation: 29))
+    #expect(schedule.isStale(elapsedSinceValidation: 30))
+    schedule.expiresIn = nil
+    #expect(schedule.isStale(elapsedSinceValidation: 0))
 }
