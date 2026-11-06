@@ -1,9 +1,10 @@
-use crate::state::TimingState;
+use crate::{schedule::Calendar, state::TimingState};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Path, State,
     },
+    http::StatusCode,
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -18,14 +19,40 @@ pub type SharedState = Arc<RwLock<TimingState>>;
 struct AppState {
     timing: SharedState,
     shutdown: watch::Receiver<bool>,
+    calendar: Arc<Calendar>,
 }
 
 pub fn router(timing: SharedState, shutdown: watch::Receiver<bool>) -> Router {
-    let state = AppState { timing, shutdown };
+    let state = AppState {
+        timing,
+        shutdown,
+        calendar: Arc::new(Calendar::default()),
+    };
     Router::new()
         .route("/health", get(health))
         .route("/live", get(upgrade))
+        .route("/schedule/{year}", get(schedule))
         .with_state(state)
+}
+
+async fn schedule(Path(year): Path<i32>, State(state): State<AppState>) -> impl IntoResponse {
+    use chrono::Datelike;
+    if !(2023..=chrono::Utc::now().year() + 1).contains(&year) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"Unsupported season"})),
+        )
+            .into_response();
+    }
+    let demo = state.timing.read().await.mode == "demo";
+    match state.calendar.load(year, demo).await {
+        Ok(schedule) => Json(schedule).into_response(),
+        Err(_) => (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error":"Calendar unavailable. Try again later."})),
+        )
+            .into_response(),
+    }
 }
 
 async fn health(State(state): State<AppState>) -> Json<Value> {
