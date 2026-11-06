@@ -50,7 +50,6 @@ struct ScheduleView: View {
                 Button("Refresh", systemImage: "arrow.clockwise") { refresh += 1 }.disabled(store.loading)
             }
             .task(id: "\(endpoint)|\(season)|\(refresh)") {
-                guard !endpoint.isEmpty else { return }
                 await store.load(endpoint: endpoint, season: season)
             }
         }
@@ -72,7 +71,7 @@ struct ScheduleView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 let fetched = schedule.fetchedDate
-                let stale = store.refreshFailed || schedule.isStale(at: now)
+                let stale = store.calendarIsStale()
                 if stale && schedule.mode != "demo" {
                     Label("Saved schedule · May be out of date. Refresh to check for changes.", systemImage: "clock.badge.exclamationmark")
                         .font(.callout).foregroundStyle(.orange)
