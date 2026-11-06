@@ -102,7 +102,8 @@ impl Calendar {
                 entry.retry_after = None;
                 Ok(schedule)
             }
-            Err(_) => {
+            Err(error) => {
+                tracing::warn!(season = year, %error, "Calendar refresh failed; retaining any saved schedule");
                 // Prevent queued callers from repeating a failing request immediately.
                 entry.retry_after = Some(Instant::now() + Duration::from_secs(30));
                 entry.stale()
