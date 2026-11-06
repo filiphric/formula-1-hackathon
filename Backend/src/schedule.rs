@@ -175,16 +175,22 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
                 start,
             });
         }
+        // With incomplete times, retain the known F1 session sequence for that
+        // whole day. Comparing a mixture of timestamps and ordinal ranks would
+        // not form a consistent sort order.
+        let untimed_dates: std::collections::HashSet<_> = sessions
+            .iter()
+            .filter(|session| session.start.is_none())
+            .map(|session| session.date.clone())
+            .collect();
         sessions.sort_by(|a, b| {
-            a.date
-                .cmp(&b.date)
-                .then_with(|| match (&a.start, &b.start) {
-                    (Some(a), Some(b)) => a.cmp(b),
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    // Stable sort retains the known session sequence when both times are TBC.
-                    (None, None) => std::cmp::Ordering::Equal,
-                })
+            a.date.cmp(&b.date).then_with(|| {
+                if untimed_dates.contains(&a.date) {
+                    std::cmp::Ordering::Equal
+                } else {
+                    a.start.cmp(&b.start)
+                }
+            })
         });
         races.push(Weekend {
             round: text(&race["round"])?.parse()?,
@@ -345,6 +351,35 @@ mod tests {
             encoded["races"][1]["sessions"][1]["name"],
             "Sprint qualifying"
         );
+    }
+
+    #[test]
+    fn mixed_published_times_preserve_practice_sequence() {
+        let value = json!({"MRData":{"total":"1","RaceTable":{"Races":[{
+            "season":"2026","round":"1","raceName":"Sample Grand Prix",
+            "Circuit":{"circuitName":"Sample","Location":{"country":"Sample"}},
+            "date":"2026-03-15","time":"14:00:00Z",
+            "FirstPractice":{"date":"2026-03-13"},
+            "SecondPractice":{"date":"2026-03-13","time":"16:00:00Z"},
+            "ThirdPractice":{"date":"2026-03-14","time":"12:00:00Z"},
+            "Qualifying":{"date":"2026-03-14","time":"16:00:00Z"}
+        }]}}});
+        let schedule = normalize(2026, &value).unwrap();
+        assert_eq!(
+            schedule.races[0]
+                .sessions
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Practice 1",
+                "Practice 2",
+                "Practice 3",
+                "Qualifying",
+                "Race"
+            ]
+        );
+        assert!(schedule.races[0].sessions[0].start.is_none());
     }
 
     #[test]
