@@ -8,6 +8,16 @@ public struct RaceSchedule: Codable, Sendable {
     public let stale: Bool
     public let races: [RaceWeekend]
 
+    public static func currentSeason(at now: Date = .now) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar.component(.year, from: now)
+    }
+
+    public static func availableSeasons(at now: Date = .now) -> [Int] {
+        Array((2023...max(2023, currentSeason(at: now) + 1)).reversed())
+    }
+
     public var fetchedDate: Date? { parseScheduleDate(fetchedAt) }
 
     public func isStale(at now: Date) -> Bool {

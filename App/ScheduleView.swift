@@ -3,10 +3,9 @@ import SwiftUI
 struct ScheduleView: View {
     let endpoint: String
     @State private var store = ScheduleStore()
-    @State private var season = Calendar.current.component(.year, from: .now)
+    @State private var season = RaceSchedule.currentSeason()
     @State private var filter = "All"
     @State private var refresh = 0
-    private let currentYear = Calendar.current.component(.year, from: .now)
     private let accent = Color(red: 1, green: 0.22, blue: 0.18)
 
     var body: some View {
@@ -17,7 +16,7 @@ struct ScheduleView: View {
                         Text("THE SEASON").font(.caption.bold()).tracking(3).foregroundStyle(accent)
                         Spacer()
                         Picker("Season", selection: $season) {
-                            ForEach(Array((2023...max(2023, currentYear + 1)).reversed()), id: \.self) { year in
+                            ForEach(RaceSchedule.availableSeasons(), id: \.self) { year in
                                 Text(String(year)).tag(year)
                             }
                         }.labelsHidden().fixedSize()
@@ -136,6 +135,6 @@ private struct WeekendCard: View {
         .padding(20)
         .background(.white.opacity(next ? 0.08 : 0.035), in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(next ? .red.opacity(0.7) : .clear))
-        .onAppear { if next { expanded = true } }
+        .onChange(of: next, initial: true) { _, isNext in expanded = isNext }
     }
 }

@@ -35,7 +35,8 @@ timing JSON contract. In normal mode it uses the public
 so calendar requests do not send OpenF1 credentials. Seasons are cached in memory
 for 15 minutes. If refresh fails, the last fetched calendar is returned with
 `stale: true`; without cached data the server returns HTTP 502 and the app offers
-retry. The app displays the source, fetch time and stale warning. Use Refresh to
+retry. Failed refreshes have a 30-second retry cooldown, and requests for one
+season do not block cached calendars for another. The app displays the source, fetch time and stale warning. Use Refresh to
 check again after the cache interval. Restarting the backend clears this cache.
 
 `--demo` returns two explicitly fictional sample weekends per selected season,

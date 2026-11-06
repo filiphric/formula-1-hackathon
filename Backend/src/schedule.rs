@@ -3,7 +3,11 @@ use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Mutex;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -38,9 +42,23 @@ pub struct Session {
 
 pub struct Calendar {
     http: reqwest::Client,
-    // Serializes refreshes, so multiple clients do not burst the public API.
-    cache: Mutex<HashMap<i32, Schedule>>,
+    // Coalesce requests per season without blocking other seasons.
+    cache: Mutex<HashMap<i32, Arc<Mutex<CacheEntry>>>>,
     base_url: String,
+}
+
+#[derive(Default)]
+struct CacheEntry {
+    schedule: Option<Schedule>,
+    retry_after: Option<Instant>,
+}
+
+impl CacheEntry {
+    fn stale(&self) -> Result<Schedule> {
+        let mut saved = self.schedule.clone().context("Calendar unavailable")?;
+        saved.stale = true;
+        Ok(saved)
+    }
 }
 
 impl Default for Calendar {
@@ -64,26 +82,31 @@ impl Calendar {
         if demo {
             return Ok(demo_schedule(year));
         }
-        let mut cache = self.cache.lock().await;
-        if let Some(saved) = cache.get(&year) {
+        let entry = self.cache.lock().await.entry(year).or_default().clone();
+        let mut entry = entry.lock().await;
+        if let Some(saved) = &entry.schedule {
             let age = chrono::DateTime::parse_from_rfc3339(&saved.fetched_at)?;
             if Utc::now().signed_duration_since(age).num_seconds() < 900 {
                 return Ok(saved.clone());
             }
         }
+        if entry
+            .retry_after
+            .is_some_and(|deadline| Instant::now() < deadline)
+        {
+            return entry.stale();
+        }
         match self.fetch(year).await {
             Ok(schedule) => {
-                cache.insert(year, schedule.clone());
+                entry.schedule = Some(schedule.clone());
+                entry.retry_after = None;
                 Ok(schedule)
             }
-            Err(error) => match cache.get(&year) {
-                Some(saved) => {
-                    let mut saved = saved.clone();
-                    saved.stale = true;
-                    Ok(saved)
-                }
-                None => Err(error),
-            },
+            Err(_) => {
+                // Prevent queued callers from repeating a failing request immediately.
+                entry.retry_after = Some(Instant::now() + Duration::from_secs(30));
+                entry.stale()
+            }
         }
     }
 
@@ -225,6 +248,70 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    #[tokio::test]
+    async fn a_busy_season_does_not_block_another_seasons_cache() {
+        use axum::{extract::State, routing::get, Router};
+        use tokio::sync::Notify;
+        let arrived = Arc::new(Notify::new());
+        async fn slow(State(arrived): State<Arc<Notify>>) -> &'static str {
+            arrived.notify_one();
+            std::future::pending().await
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route("/2025/races/", get(slow))
+            .with_state(arrived.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let calendar = Arc::new(Calendar {
+            base_url: format!("http://{address}"),
+            ..Calendar::default()
+        });
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(demo_schedule(2026)),
+                retry_after: None,
+            })),
+        );
+        let loading = calendar.clone();
+        let in_flight = tokio::spawn(async move { loading.load(2025, false).await });
+        tokio::time::timeout(Duration::from_secs(2), arrived.notified())
+            .await
+            .unwrap();
+        let cached =
+            tokio::time::timeout(Duration::from_millis(100), calendar.load(2026, false)).await;
+        in_flight.abort();
+        server.abort();
+        assert_eq!(cached.unwrap().unwrap().season, 2026);
+    }
+
+    #[tokio::test]
+    async fn failed_refreshes_are_coalesced_during_retry_cooldown() {
+        use axum::{extract::State, http::StatusCode, routing::get, Router};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let calls = Arc::new(AtomicUsize::new(0));
+        async fn fail(State(calls): State<Arc<AtomicUsize>>) -> StatusCode {
+            calls.fetch_add(1, Ordering::SeqCst);
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route("/2026/races/", get(fail))
+            .with_state(calls.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let calendar = Calendar {
+            base_url: format!("http://{address}"),
+            ..Calendar::default()
+        };
+        for _ in 0..3 {
+            assert!(calendar.load(2026, false).await.is_err());
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        server.abort();
+    }
+
     #[test]
     fn shared_swift_fixture_preserves_wire_contract() {
         let raw = include_str!("../../Tests/Fixtures/schedule.json");
@@ -279,7 +366,13 @@ mod tests {
         let mut saved = demo_schedule(2026);
         saved.mode = "calendar".into();
         saved.fetched_at = "2020-01-01T00:00:00Z".into();
-        calendar.cache.lock().await.insert(2026, saved);
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
         let stale = calendar.load(2026, false).await.unwrap();
         assert!(stale.stale);
         assert_eq!(stale.fetched_at, "2020-01-01T00:00:00Z");

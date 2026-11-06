@@ -69,3 +69,13 @@ private func instant(_ value: String) -> Date {
     #expect(!schedule.isStale(at: fetched.addingTimeInterval(899)))
     #expect(schedule.isStale(at: fetched.addingTimeInterval(900)))
 }
+
+@Test func seasonsMatchBackendUTCYearAroundNewYear() {
+    // Already January 1 in Bratislava, but the server still accepts through 2027.
+    let before = instant("2026-12-31T23:30:00Z")
+    #expect(RaceSchedule.currentSeason(at: before) == 2026)
+    #expect(RaceSchedule.availableSeasons(at: before) == [2027, 2026, 2025, 2024, 2023])
+    let after = instant("2027-01-01T00:00:00Z")
+    #expect(RaceSchedule.currentSeason(at: after) == 2027)
+    #expect(RaceSchedule.availableSeasons(at: after).first == 2028)
+}
