@@ -57,7 +57,7 @@ struct TrackMapView: View {
                             Button { selectedDriver = selectedDriver == driver.number ? nil : driver.number } label: {
                                 Text(String(driver.number)).font(.caption2.bold().monospacedDigit())
                                     .foregroundStyle(.white).frame(width: 28, height: 28)
-                                    .background(teamColor(driver.color), in: Circle())
+                                    .background(Color.team(driver.color), in: Circle())
                                     .overlay(Circle().stroke(.white, lineWidth: selectedDriver == driver.number ? 3 : 1))
                             }
                             .buttonStyle(.plain)
@@ -78,7 +78,7 @@ struct TrackMapView: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), alignment: .leading)], alignment: .leading, spacing: 10) {
             ForEach(snapshot.drivers.filter { selectedDriver == nil || $0.number == selectedDriver }) { driver in
                 HStack(spacing: 7) {
-                    Circle().fill(teamColor(driver.color)).frame(width: 8, height: 8)
+                    Circle().fill(Color.team(driver.color)).frame(width: 8, height: 8)
                     Text("\(driver.number) \(driver.acronym)").fontWeight(.semibold)
                     Text(driver.location.map { $0.isStale(at: now) ? "Stale" : "Located" } ?? "Unavailable")
                         .foregroundStyle(.secondary)
@@ -87,7 +87,10 @@ struct TrackMapView: View {
         }
     }
 
-    private func teamColor(_ hex: String) -> Color {
+}
+
+extension Color {
+    static func team(_ hex: String) -> Color {
         guard let value = UInt(hex, radix: 16) else { return .gray }
         return Color(red: Double((value >> 16) & 255) / 255,
                      green: Double((value >> 8) & 255) / 255,

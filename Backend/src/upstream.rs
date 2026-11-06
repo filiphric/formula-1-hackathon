@@ -144,7 +144,7 @@ impl OpenF1 {
             .await
             .context("OpenF1 snapshot request failed")?;
         // OpenF1 returns 404 for empty datasets, including intervals outside races.
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if endpoint != "sessions" && response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(Vec::new());
         }
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
@@ -196,16 +196,20 @@ fn timing_subscriptions() -> [SubscribeFilter; 7] {
     TOPICS.map(|topic| SubscribeFilter::new(format!("v1/{topic}"), QoS::AtMostOnce))
 }
 
-fn verify_subscription(ack: &rumqttc::SubAck) -> Result<()> {
+fn verify_subscription(ack: &rumqttc::SubAck) -> Result<bool> {
     if ack.return_codes.len() != TOPICS.len()
         || ack
             .return_codes
             .iter()
+            .take(TOPICS.len() - 1)
             .any(|code| matches!(code, rumqttc::SubscribeReasonCode::Failure))
     {
         bail!("OpenF1 MQTT subscription was rejected or incomplete");
     }
-    Ok(())
+    Ok(!matches!(
+        ack.return_codes.last(),
+        Some(rumqttc::SubscribeReasonCode::Failure)
+    ))
 }
 
 async fn verify_mqtt(options: MqttOptions) -> Result<()> {
@@ -220,7 +224,9 @@ async fn verify_mqtt(options: MqttOptions) -> Result<()> {
                 client.subscribe_many(timing_subscriptions()).await?;
             }
             Event::Incoming(Packet::SubAck(ack)) => {
-                verify_subscription(&ack)?;
+                if !verify_subscription(&ack)? {
+                    bail!("OpenF1 MQTT location subscription was rejected");
+                }
                 return Ok(());
             }
             _ => {}
@@ -287,22 +293,32 @@ async fn load_snapshot(
             state.apply(topic, record);
         }
     }
-    // Location history is high volume: bootstrap only the last ten seconds.
-    let end = chrono::DateTime::parse_from_rfc3339(&session_end)
-        .map(|d| d.with_timezone(&chrono::Utc).min(chrono::Utc::now()))
-        .unwrap_or_else(|_| chrono::Utc::now());
-    let filters = [
-        ("date>", (end - chrono::Duration::seconds(10)).to_rfc3339()),
-        ("date<", (end + chrono::Duration::seconds(1)).to_rfc3339()),
-    ];
-    match api.filtered("location", &key.to_string(), &filters).await {
-        Ok(records) => {
-            let mut state = state.write().await;
-            for record in records {
-                state.apply("location", record);
-            }
+    // Try current activity first: red flags can extend a session beyond its schedule.
+    let now = chrono::Utc::now();
+    let mut ends = vec![now];
+    if let Ok(end) = chrono::DateTime::parse_from_rfc3339(&session_end) {
+        let end = end.with_timezone(&chrono::Utc);
+        if end < now - chrono::Duration::seconds(10) {
+            ends.push(end);
         }
-        Err(error) => warn!(%error, "Location bootstrap unavailable; waiting for stream"),
+    }
+    for end in ends {
+        sleep(Duration::from_millis(350)).await;
+        let filters = [
+            ("date>", (end - chrono::Duration::seconds(10)).to_rfc3339()),
+            ("date<", (end + chrono::Duration::seconds(1)).to_rfc3339()),
+        ];
+        match api.filtered("location", &key.to_string(), &filters).await {
+            Ok(records) if !records.is_empty() => {
+                let mut state = state.write().await;
+                for record in records {
+                    state.apply("location", record);
+                }
+                break;
+            }
+            Ok(_) => {}
+            Err(error) => warn!(%error, "Location bootstrap unavailable; waiting for stream"),
+        }
     }
     refresh_track(api, state, key).await;
     Ok(key)
@@ -315,7 +331,7 @@ async fn refresh_track(api: &OpenF1, state: &SharedState, key: i64) {
     let result: Result<()> = async {
         sleep(Duration::from_millis(350)).await;
         let laps = api.get("laps", &key.to_string()).await?;
-        let Some((lap, start, duration)) = laps
+        let mut candidates: Vec<_> = laps
             .iter()
             .filter_map(|lap| {
                 let duration = lap["lap_duration"].as_f64()?;
@@ -327,27 +343,29 @@ async fn refresh_track(api: &OpenF1, state: &SharedState, key: i64) {
                     && lap["driver_number"].as_i64().is_some())
                 .then_some((lap, start, duration))
             })
-            .max_by_key(|(_, start, _)| *start)
-        else {
-            return Ok(());
-        };
-        sleep(Duration::from_millis(350)).await;
-        let end = start + chrono::Duration::milliseconds((duration * 1000.0) as i64);
-        let records = api
-            .filtered(
-                "location",
-                &key.to_string(),
-                &[
-                    ("driver_number", lap["driver_number"].to_string()),
-                    ("date>", start.to_rfc3339()),
-                    ("date<", end.to_rfc3339()),
-                ],
-            )
-            .await?;
-        if let Some(track) = reference_layout(records, key, start, end) {
-            let mut state = state.write().await;
-            if state.session.as_ref().map(|s| s.session_key) == Some(key) {
-                state.track = Some(track);
+            .collect();
+        candidates.sort_by_key(|(_, start, _)| std::cmp::Reverse(*start));
+        // Bound retries while allowing a sparse newest lap to fall back to another trace.
+        for (lap, start, duration) in candidates.into_iter().take(3) {
+            sleep(Duration::from_millis(350)).await;
+            let end = start + chrono::Duration::milliseconds((duration * 1000.0) as i64);
+            let records = api
+                .filtered(
+                    "location",
+                    &key.to_string(),
+                    &[
+                        ("driver_number", lap["driver_number"].to_string()),
+                        ("date>", start.to_rfc3339()),
+                        ("date<", end.to_rfc3339()),
+                    ],
+                )
+                .await?;
+            if let Some(track) = reference_layout(records, key, start, end) {
+                let mut state = state.write().await;
+                if state.session.as_ref().map(|s| s.session_key) == Some(key) {
+                    state.track = Some(track);
+                }
+                break;
             }
         }
         Ok(())
@@ -381,11 +399,11 @@ fn reference_layout(
         .collect();
     locations.sort_by_key(|(date, _)| *date);
     if locations.len() < 20
-        || (locations.first()?.0 - start).num_seconds() > 2
-        || (end - locations.last()?.0).num_seconds() > 2
+        || locations.first()?.0 - start > chrono::Duration::seconds(2)
+        || end - locations.last()?.0 > chrono::Duration::seconds(2)
         || locations
             .windows(2)
-            .any(|w| (w[1].0 - w[0].0).num_seconds() > 3)
+            .any(|w| w[1].0 - w[0].0 > chrono::Duration::seconds(3))
     {
         return None;
     }
@@ -437,7 +455,7 @@ async fn mqtt_connection(
                     client.subscribe_many(timing_subscriptions()).await?;
                 },
                 Event::Incoming(Packet::SubAck(ack)) => {
-                    verify_subscription(&ack)?;
+                    if !verify_subscription(&ack)? { warn!("OpenF1 location subscription rejected; continuing timing without location stream"); }
                     state.write().await.upstream = "connected".into();
                     let _ = resync.try_send(());
                 },
@@ -563,7 +581,8 @@ mod tests {
                 "drivers" => json!([{"session_key":42,"driver_number":4,"full_name":"Norris"}]),
                 "intervals" => return axum::http::StatusCode::NOT_FOUND.into_response(),
                 "laps" => {
-                    json!([{"session_key":42,"driver_number":4,"date_start":start.to_rfc3339(),"lap_duration":90,"is_pit_out_lap":false}])
+                    json!([{"session_key":42,"driver_number":4,"date_start":start.to_rfc3339(),"lap_duration":90,"is_pit_out_lap":false},
+                    {"session_key":42,"driver_number":4,"date_start":(start+chrono::Duration::seconds(10)).to_rfc3339(),"lap_duration":90,"is_pit_out_lap":false}])
                 }
                 "location" => {
                     assert_eq!(query["session_key"], "42");
@@ -572,10 +591,14 @@ mod tests {
                     if query.contains_key("driver_number") {
                         assert_eq!(query["driver_number"], "4");
                         assert_eq!((to - from).num_seconds(), 90);
+                        if from != start {
+                            return Json(json!([])).into_response();
+                        }
                         json!((0..=900).map(|i| json!({"session_key":42,"driver_number":4,
                             "date":(start+chrono::Duration::milliseconds(i*100)).to_rfc3339(),"x":100+i,"y":200+i})).collect::<Vec<_>>())
                     } else {
                         assert_eq!((to - from).num_seconds(), 11);
+                        assert!(to > chrono::Utc::now() - chrono::Duration::seconds(5));
                         json!([{"session_key":42,"driver_number":4,"date":"2026-11-06T12:01:59Z","x":800,"y":900}])
                     }
                 }
@@ -613,6 +636,19 @@ mod tests {
     }
 
     #[test]
+    fn optional_location_refusal_keeps_timing_subscriptions_usable() {
+        use rumqttc::{SubAck, SubscribeReasonCode};
+        let mut ack = SubAck::new(1, vec![SubscribeReasonCode::Success(QoS::AtMostOnce); 7]);
+        assert!(verify_subscription(&ack).unwrap());
+        ack.return_codes[6] = SubscribeReasonCode::Failure;
+        assert!(!verify_subscription(&ack).unwrap());
+        ack.return_codes[2] = SubscribeReasonCode::Failure;
+        assert!(verify_subscription(&ack).is_err());
+        ack.return_codes.truncate(5);
+        assert!(verify_subscription(&ack).is_err());
+    }
+
+    #[test]
     fn layout_requires_a_complete_trace_in_time_order_and_bounds_its_size() {
         let start = chrono::DateTime::parse_from_rfc3339("2026-11-06T12:00:00Z").unwrap();
         let end = start + chrono::Duration::seconds(90);
@@ -632,6 +668,18 @@ mod tests {
         assert!(reference_layout(records.clone(), 43, start, end).is_none());
         let missing_start = records.iter().take(400).cloned().collect();
         assert!(reference_layout(missing_start, 42, start, end).is_none());
+        let missing_fractional_start = records
+            .iter()
+            .filter(|r| r["x"].as_i64().unwrap() >= 129)
+            .cloned()
+            .collect();
+        assert!(reference_layout(missing_fractional_start, 42, start, end).is_none());
+        let fractional_gap = records
+            .iter()
+            .filter(|r| !(500..538).contains(&r["x"].as_i64().unwrap()))
+            .cloned()
+            .collect();
+        assert!(reference_layout(fractional_gap, 42, start, end).is_none());
         let gap = records
             .into_iter()
             .filter(|r| r["x"].as_i64().unwrap() < 300 || r["x"].as_i64().unwrap() > 500)

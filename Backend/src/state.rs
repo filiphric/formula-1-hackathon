@@ -217,7 +217,7 @@ impl TimingState {
                 bucket.remove(&oldest);
             }
         }
-        if let Some(date) = date {
+        if let Some(date) = date.filter(|_| topic != "location") {
             if self.updated_at.is_none_or(|old| date > old) {
                 self.updated_at = Some(date);
             }
@@ -282,7 +282,7 @@ impl TimingState {
                 .cmp(&parse(&a.date))
                 .then_with(|| a.id.cmp(&b.id))
         });
-        Snapshot {
+        let mut snapshot = Snapshot {
             mode: self.mode.clone(),
             upstream: self.upstream.clone(),
             updated_at: self
@@ -297,7 +297,20 @@ impl TimingState {
             drivers,
             messages,
             track: self.track.clone(),
+        };
+        if self.mode == "demo" {
+            let now = Utc::now();
+            let phase = now.timestamp_millis() as f64 / 60000.0;
+            for (i, driver) in snapshot.drivers.iter_mut().enumerate() {
+                let point = demo_point((phase - i as f64 * 0.09).rem_euclid(1.0));
+                driver.location = Some(DriverLocation {
+                    x: point.x,
+                    y: point.y,
+                    date: now.to_rfc3339(),
+                });
+            }
         }
+        snapshot
     }
 
     pub fn demo() -> Self {
@@ -352,22 +365,6 @@ impl TimingState {
                 .collect(),
         });
         state
-    }
-
-    pub fn animate_demo(&mut self) {
-        if self.mode != "demo" {
-            return;
-        }
-        let now = Utc::now();
-        let phase = now.timestamp_millis() as f64 / 60000.0;
-        for (i, number) in [4, 16, 1, 63].into_iter().enumerate() {
-            let point = demo_point((phase - i as f64 * 0.09).rem_euclid(1.0));
-            self.apply(
-                "location",
-                json!({"session_key":1,"driver_number":number,
-                "x":point.x,"y":point.y,"date":now.to_rfc3339()}),
-            );
-        }
     }
 }
 

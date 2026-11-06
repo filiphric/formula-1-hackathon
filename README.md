@@ -26,12 +26,13 @@ The **On track** card in Live timing plots numbered, team-colored driver markers
 an approximate circuit outline. Select a driver from the picker or click a marker
 to highlight it. Race, practice and qualifying use the same active-session feed.
 The backend subscribes to OpenF1 `location` and bootstraps the last ten seconds of
-coordinates. Each driver retains its own sample timestamp; markers dim after ten
+coordinates, falling back to the scheduled session end for historical sessions. Each driver retains its own sample timestamp; markers dim after ten
 seconds, and the view identifies disconnected, stale, future and ended sessions.
-Drivers without coordinates are listed as unavailable.
+Drivers without coordinates are listed as unavailable. Fresh coordinates can keep
+an extended session live past its scheduled end.
 
 The outline is a completed, non-out-lap location trace from the current session,
-with at most 600 points. It appears once a sufficiently complete timed lap is
+with at most 600 points. Up to three recent laps are tried if a trace is sparse. It appears once a sufficiently complete timed lap is
 available and retries every minute while unavailable. Coordinates are approximate,
 not lane-level tracking. A new session clears both the outline and old locations.
 `track` and driver `location` are optional additions to the existing WebSocket

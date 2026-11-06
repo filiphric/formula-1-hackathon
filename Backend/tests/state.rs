@@ -168,8 +168,7 @@ fn locations_are_timestamped_ordered_validated_and_session_scoped() {
 
 #[test]
 fn location_contract_is_additive_and_demo_positions_move_on_its_layout() {
-    let mut demo = TimingState::demo();
-    demo.animate_demo();
+    let demo = TimingState::demo();
     let first = demo.snapshot();
     assert_eq!(first.track.as_ref().unwrap().points.len(), 181);
     assert!(first.track.as_ref().unwrap().source.contains("Fictional"));
@@ -187,4 +186,23 @@ fn location_contract_is_additive_and_demo_positions_move_on_its_layout() {
     let decoded: formula_live_backend::state::Snapshot = serde_json::from_value(legacy).unwrap();
     assert!(decoded.track.is_none());
     assert!(decoded.drivers.iter().all(|d| d.location.is_none()));
+}
+
+#[test]
+fn locations_do_not_hide_a_stalled_timing_feed() {
+    let mut state = state();
+    state.apply(
+        "position",
+        json!({"session_key":42,"driver_number":4,"position":1,"date":"2026-11-06T12:00:00Z"}),
+    );
+    state.apply(
+        "location",
+        json!({"session_key":42,"driver_number":4,"x":300,"y":400,"date":"2026-11-06T12:01:00Z"}),
+    );
+    let snapshot = state.snapshot();
+    assert_eq!(snapshot.updated_at.as_deref(), Some("2026-11-06T12:00:00Z"));
+    assert_eq!(
+        snapshot.drivers[0].location.as_ref().unwrap().date,
+        "2026-11-06T12:01:00Z"
+    );
 }

@@ -57,6 +57,7 @@ private func trackSnapshot(mode: String = "live", upstream: String = "connected"
     #expect(missing.trackStatus(at: now, connected: true) == "Waiting for driver locations")
     let later = try #require(TrackLayout.parseDate("2026-11-06T14:00:00Z"))
     #expect(try trackSnapshot().trackStatus(at: later, connected: true) == "Session ended · Last known positions")
+    #expect(try trackSnapshot(date: "2026-11-06T14:00:00Z").trackStatus(at: later, connected: true) == "LIVE · Driver locations")
     let stale = try #require(TrackLayout.parseDate("2026-11-06T12:00:20Z"))
     #expect(try trackSnapshot().trackStatus(at: stale, connected: true) == "Stale · No recent driver locations")
 }

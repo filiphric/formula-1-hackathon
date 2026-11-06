@@ -114,9 +114,11 @@ extension TimingSnapshot {
         guard connected, upstream == "connected" else { return "Disconnected · Last known positions" }
         guard let session, let start = TrackLayout.parseDate(session.start),
               let end = TrackLayout.parseDate(session.end) else { return "Session time unavailable" }
-        if now > end { return "Session ended · Last known positions" }
-        if now < start { return "Session has not started" }
         let locations = drivers.compactMap(\.location)
+        if now > end && !locations.contains(where: { !$0.isStale(at: now) }) {
+            return "Session ended · Last known positions"
+        }
+        if now < start { return "Session has not started" }
         if locations.isEmpty { return "Waiting for driver locations" }
         if locations.allSatisfy({ $0.isStale(at: now) }) { return "Stale · No recent driver locations" }
         return "LIVE · Driver locations"
