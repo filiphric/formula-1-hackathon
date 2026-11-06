@@ -27,13 +27,25 @@ async fn main() -> Result<()> {
         .init();
     let args: Vec<_> = env::args().skip(1).collect();
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
-        println!("formula-live-backend [--demo]\nReads Backend/.env. HOST defaults to 127.0.0.1; PORT to 8787.");
+        println!("formula-live-backend [--demo | --check-live]\nReads Backend/.env. HOST defaults to 127.0.0.1; PORT to 8787.\n--check-live verifies OpenF1 authentication, REST access and MQTT subscriptions, then exits.");
         return Ok(());
     }
-    if args.iter().any(|arg| arg != "--demo") {
+    if args
+        .iter()
+        .any(|arg| arg != "--demo" && arg != "--check-live")
+    {
         bail!("Unknown argument; use --help");
     }
     let demo = args.iter().any(|arg| arg == "--demo");
+    let check_live = args.iter().any(|arg| arg == "--check-live");
+    if demo && check_live {
+        bail!("Use either --demo or --check-live");
+    }
+    if check_live {
+        upstream::check_live(Config::from_env()?).await?;
+        println!("OpenF1 verified: authentication, REST access and all timing MQTT subscriptions succeeded.");
+        return Ok(());
+    }
     let config = if demo {
         None
     } else {
