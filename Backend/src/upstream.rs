@@ -143,6 +143,10 @@ impl OpenF1 {
             .send()
             .await
             .context("OpenF1 snapshot request failed")?;
+        // OpenF1 returns 404 for empty datasets, including intervals outside races.
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(Vec::new());
+        }
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
             let mut cached = self.token.lock().await;
             if cached.as_ref().is_some_and(|t| t.value == token.value) {
@@ -540,6 +544,72 @@ mod tests {
         server.abort();
         assert_eq!(session.session_key, 9158);
         assert_eq!(session.session_name, "Race");
+    }
+
+    #[tokio::test]
+    async fn practice_bootstrap_survives_empty_intervals_and_bounds_location_queries() {
+        use axum::extract::{Path, Query};
+        async fn endpoint(
+            Path(endpoint): Path<String>,
+            Query(query): Query<HashMap<String, String>>,
+        ) -> axum::response::Response {
+            use axum::response::IntoResponse;
+            let start = chrono::DateTime::parse_from_rfc3339("2026-11-06T12:00:00Z").unwrap();
+            let data = match endpoint.as_str() {
+                "sessions" => {
+                    json!([{"session_key":42,"session_name":"Practice 1","circuit_short_name":"Test",
+                    "date_start":start.to_rfc3339(),"date_end":"2026-11-06T12:02:00Z"}])
+                }
+                "drivers" => json!([{"session_key":42,"driver_number":4,"full_name":"Norris"}]),
+                "intervals" => return axum::http::StatusCode::NOT_FOUND.into_response(),
+                "laps" => {
+                    json!([{"session_key":42,"driver_number":4,"date_start":start.to_rfc3339(),"lap_duration":90,"is_pit_out_lap":false}])
+                }
+                "location" => {
+                    assert_eq!(query["session_key"], "42");
+                    let from = chrono::DateTime::parse_from_rfc3339(&query["date>"]).unwrap();
+                    let to = chrono::DateTime::parse_from_rfc3339(&query["date<"]).unwrap();
+                    if query.contains_key("driver_number") {
+                        assert_eq!(query["driver_number"], "4");
+                        assert_eq!((to - from).num_seconds(), 90);
+                        json!((0..=900).map(|i| json!({"session_key":42,"driver_number":4,
+                            "date":(start+chrono::Duration::milliseconds(i*100)).to_rfc3339(),"x":100+i,"y":200+i})).collect::<Vec<_>>())
+                    } else {
+                        assert_eq!((to - from).num_seconds(), 11);
+                        json!([{"session_key":42,"driver_number":4,"date":"2026-11-06T12:01:59Z","x":800,"y":900}])
+                    }
+                }
+                _ => json!([]),
+            };
+            Json(data).into_response()
+        }
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, Router::new().route("/{endpoint}", get(endpoint)))
+                .await
+                .unwrap();
+        });
+        let mut api = OpenF1::new(Config {
+            username: "test".into(),
+            password: "test".into(),
+            session_key: "42".into(),
+        })
+        .unwrap();
+        api.api_url = format!("http://{address}");
+        *api.token.lock().await = Some(Token {
+            value: "test".into(),
+            renew_at: Instant::now() + Duration::from_secs(60),
+        });
+        let state = Arc::new(tokio::sync::RwLock::new(crate::state::TimingState::new(
+            "live",
+        )));
+        assert_eq!(load_snapshot(&api, &state, None, false).await.unwrap(), 42);
+        let snapshot = state.read().await.snapshot();
+        assert_eq!(snapshot.session.unwrap().name, "Practice 1");
+        assert_eq!(snapshot.drivers[0].location.as_ref().unwrap().x, 800.0);
+        assert!(snapshot.track.unwrap().points.len() >= 20);
+        server.abort();
     }
 
     #[test]
