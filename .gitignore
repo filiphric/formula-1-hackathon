@@ -1,0 +1,7 @@
+.build/
+DerivedData/
+Backend/target/
+Backend/.env
+*.xcuserstate
+xcuserdata/
+.DS_Store

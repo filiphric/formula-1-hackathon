@@ -1,0 +1,127 @@
+use formula_live_backend::state::{Session, TimingState};
+use serde_json::json;
+
+fn state() -> TimingState {
+    let mut state = TimingState::new("live");
+    state.set_session(Session {
+        session_key: 42,
+        session_name: "Race".into(),
+        circuit_short_name: "Monza".into(),
+        date_start: "2026-09-01T12:00:00Z".into(),
+        date_end: "2026-09-01T14:00:00Z".into(),
+    });
+    state.apply(
+        "drivers",
+        json!({"session_key":42,"driver_number":4,"full_name":"Lando Norris","name_acronym":"NOR"}),
+    );
+    state
+}
+
+#[test]
+fn rejects_old_positions_and_other_sessions() {
+    let mut state = state();
+    state.apply(
+        "position",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:00:00Z","position":2}),
+    );
+    // This timestamp looks later as text, but is actually earlier in UTC.
+    state.apply("position", json!({"session_key":42,"driver_number":4,"date":"2026-09-01T13:59:00+02:00","position":10}));
+    state.apply(
+        "position",
+        json!({"session_key":1,"driver_number":4,"date":"2026-09-01T12:01:00Z","position":9}),
+    );
+    assert_eq!(state.snapshot().drivers[0].position, Some(2));
+    let mut next = state.session.clone().unwrap();
+    next.session_key = 43;
+    state.set_session(next);
+    assert!(state.snapshot().drivers.is_empty());
+    assert!(state.snapshot().updated_at.is_none());
+}
+
+#[test]
+fn merges_lap_corrections_and_rejects_previous_laps_and_document_versions() {
+    let mut state = state();
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":12,"lap_duration":null,"_id":100}),
+    );
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":12,"lap_duration":91.333,"_id":102}),
+    );
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":12,"lap_duration":95,"_id":101}),
+    );
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":11,"lap_duration":95,"_id":103}),
+    );
+    assert_eq!(state.snapshot().drivers[0].lap, Some(12));
+    assert_eq!(state.snapshot().drivers[0].lap_time, Some(91.333));
+}
+
+#[test]
+fn accepts_numeric_lapped_and_null_gaps() {
+    let mut state = state();
+    for (gap, expected) in [
+        (json!(2.431), Some("+2.431")),
+        (json!("+1 LAP"), Some("+1 LAP")),
+        (json!(null), None),
+    ] {
+        state.apply(
+            "intervals",
+            json!({"session_key":42,"driver_number":4,"gap_to_leader":gap}),
+        );
+        assert_eq!(state.snapshot().drivers[0].gap.as_deref(), expected);
+    }
+}
+
+#[test]
+fn deduplicates_and_bounds_race_control_history() {
+    let mut state = state();
+    for i in 0..110 {
+        let date = chrono::DateTime::from_timestamp(1_780_000_000 + i, 0)
+            .unwrap()
+            .to_rfc3339();
+        let record = json!({"session_key":42,"date":date,"message":format!("Flag {i}")});
+        state.apply("race_control", record.clone());
+        state.apply("race_control", record);
+    }
+    assert_eq!(state.snapshot().messages.len(), 100);
+    assert_eq!(state.snapshot().messages[0].message, "Flag 109");
+}
+
+#[test]
+fn normalized_snapshot_keeps_swift_keys_and_explicit_null_values() {
+    let state = state();
+    let value = serde_json::to_value(state.snapshot()).unwrap();
+    assert!(value.get("updatedAt").is_some());
+    assert!(value.get("updated_at").is_none());
+    let driver = &value["drivers"][0];
+    assert_eq!(driver["number"], 4);
+    assert!(driver
+        .get("lapTime")
+        .is_some_and(serde_json::Value::is_null));
+    assert!(driver.get("gap").is_some_and(serde_json::Value::is_null));
+}
+
+#[test]
+fn rest_bootstrap_does_not_overwrite_live_lap_corrections() {
+    let mut state = state();
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":12,"lap_duration":91.333,"_id":102}),
+    );
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":12,"lap_duration":null}),
+    );
+    assert_eq!(state.snapshot().drivers[0].lap_time, Some(91.333));
+    // A later lap from a resync must still supersede the previous lap.
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":13,"lap_duration":92.5}),
+    );
+    assert_eq!(state.snapshot().drivers[0].lap_time, Some(92.5));
+}
