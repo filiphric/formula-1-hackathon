@@ -112,6 +112,17 @@ impl OpenF1 {
         Ok(token)
     }
 
+    async fn session(&self) -> Result<Session> {
+        let sessions = self.get("sessions", &self.config.session_key).await?;
+        serde_json::from_value(
+            sessions
+                .last()
+                .cloned()
+                .context("No OpenF1 session found")?,
+        )
+        .context("Invalid OpenF1 session response")
+    }
+
     async fn get(&self, endpoint: &str, session_key: &str) -> Result<Vec<Value>> {
         let token = self.authenticate().await?;
         let response = self
@@ -141,8 +152,12 @@ impl OpenF1 {
 /// Verify paid access without exposing credentials or requiring live timing events.
 pub async fn check_live(config: Config) -> Result<()> {
     let api = OpenF1::new(config)?;
+    check_live_with_api(&api).await
+}
+
+async fn check_live_with_api(api: &OpenF1) -> Result<()> {
     let token = api.authenticate().await?;
-    api.get("sessions", &api.config.session_key).await?;
+    api.session().await?;
     let options = mqtt_options(&api.config.username, &token.value);
     tokio::time::timeout(Duration::from_secs(30), verify_mqtt(options))
         .await
@@ -241,13 +256,7 @@ async fn load_snapshot(
     loaded: Option<i64>,
     force: bool,
 ) -> Result<i64> {
-    let sessions = api.get("sessions", &api.config.session_key).await?;
-    let session: Session = serde_json::from_value(
-        sessions
-            .last()
-            .cloned()
-            .context("No OpenF1 session found")?,
-    )?;
+    let session = api.session().await?;
     let key = session.session_key;
     if !force && loaded == Some(key) {
         return Ok(key);
@@ -338,6 +347,78 @@ mod tests {
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::net::TcpListener;
+
+    async fn session_api(
+        response: Value,
+        session_key: &str,
+    ) -> (OpenF1, tokio::task::JoinHandle<()>) {
+        use axum::extract::Query;
+
+        async fn sessions(
+            Query(query): Query<HashMap<String, String>>,
+            State((response, expected_key)): State<(Value, String)>,
+        ) -> Json<Value> {
+            assert_eq!(query["session_key"], expected_key);
+            Json(response)
+        }
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route("/sessions", get(sessions))
+            .with_state((response, session_key.to_string()));
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let mut api = OpenF1::new(Config {
+            username: "test-user".into(),
+            password: "test-password".into(),
+            session_key: session_key.into(),
+        })
+        .unwrap();
+        api.api_url = format!("http://{address}");
+        // Keep authentication local; these tests exercise session validation.
+        *api.token.lock().await = Some(Token {
+            value: "test-token".into(),
+            renew_at: Instant::now() + Duration::from_secs(60),
+        });
+        (api, server)
+    }
+
+    #[tokio::test]
+    async fn live_check_rejects_missing_or_malformed_sessions_before_mqtt() {
+        for (response, expected_error) in [
+            (json!([]), "No OpenF1 session found"),
+            (
+                json!([{"session_key": 999999999}]),
+                "Invalid OpenF1 session response",
+            ),
+        ] {
+            let (api, server) = session_api(response, "999999999").await;
+            let result =
+                tokio::time::timeout(Duration::from_secs(2), check_live_with_api(&api)).await;
+            server.abort();
+            let error = result
+                .expect("session failure must precede MQTT verification")
+                .unwrap_err();
+            assert_eq!(error.to_string(), expected_error);
+        }
+    }
+
+    #[tokio::test]
+    async fn session_lookup_accepts_a_usable_session() {
+        let response = json!([{
+            "session_key": 9158,
+            "session_name": "Race",
+            "circuit_short_name": "Monza",
+            "date_start": "2023-09-03T13:00:00+00:00",
+            "date_end": "2023-09-03T15:00:00+00:00"
+        }]);
+        let (api, server) = session_api(response, "latest").await;
+        let session = api.session().await.unwrap();
+        server.abort();
+        assert_eq!(session.session_key, 9158);
+        assert_eq!(session.session_name, "Race");
+    }
 
     #[test]
     fn mqtt_uses_access_token_with_tls_and_documented_broker() {
