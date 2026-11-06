@@ -20,6 +20,34 @@ iOS Simulator, then Run. The default server is `ws://localhost:8787/live`.
 Demo is explicitly labelled and uses four fictional sample timing rows; it does not
 contact OpenF1 or replay a real race.
 
+## Schedule
+
+The **Schedule** tab shows each season from 2023 through next year, with All,
+Upcoming and Past filters. Expand a weekend for practice, qualifying, sprint
+qualifying, sprint and race start times. All published instants are converted to
+the device timezone, including the local calendar date and daylight saving time.
+Unpublished times remain **Time TBC**. Past means the scheduled race start has
+passed; the calendar does not claim a race has finished or show results.
+
+The Rust backend exposes `GET /schedule/{year}` independently of the existing
+timing JSON contract. In normal mode it uses the public
+[Jolpica race calendar](https://github.com/jolpica/jolpica-f1/blob/main/docs/endpoints/races.md),
+so calendar requests do not send OpenF1 credentials. Seasons are cached in memory
+for 15 minutes. If refresh fails, the last fetched calendar is returned with
+`stale: true`; without cached data the server returns HTTP 502 and the app offers
+retry. The app also retains the visible season if its own refresh cannot reach the
+backend, showing a saved-data warning; changing server or season clears that view.
+Both tabs use the server confirmed with Connect, and prefixed deployment URLs
+(e.g. `/formula/live`) retain their prefix for calendar requests. Failed refreshes have a 30-second retry cooldown, and requests for one
+season do not block cached calendars for another. The app displays the source, fetch time and stale warning. Use Refresh to
+check again after the cache interval. Restarting the backend clears this cache.
+
+`--demo` returns two explicitly fictional sample weekends per selected season,
+including a sprint weekend, without making calendar network requests. A future
+season may legitimately have no published races. Calendar times can change;
+refresh before planning around a session. Existing live mode still requires the
+backend's OpenF1 credentials described below.
+
 ## Connect OpenF1 live access
 
 ```sh
@@ -112,7 +140,7 @@ bearer headers, token caching and renewal.
 
 Live authentication and delivery require your subscription credentials and a real
 session; demo tests cannot verify those. This initial slice does not yet include
-track maps, telemetry charts, session browsing, radio playback, TV-delay controls,
+track maps, telemetry charts, historical timing browsing, radio playback, TV-delay controls,
 background notifications, app icons, or distribution signing.
 
 OpenF1 is unofficial. See [API docs](https://openf1.org/docs/),

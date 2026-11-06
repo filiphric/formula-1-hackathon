@@ -47,6 +47,30 @@ async fn demo_health_websocket_contract_and_shutdown() {
                 .status(),
             404
         );
+        let calendar: serde_json::Value = http
+            .get(format!("http://{address}/schedule/2026"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(calendar["mode"], "demo");
+        assert_eq!(calendar["season"], 2026);
+        assert!(calendar["fetchedAt"].is_string());
+        assert_eq!(calendar["stale"], false);
+        assert_eq!(
+            calendar["races"][1]["sessions"][1]["name"],
+            "Sprint qualifying"
+        );
+        assert_eq!(
+            http.get(format!("http://{address}/schedule/1900"))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            400
+        );
         let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}/live"))
             .await
             .unwrap();
