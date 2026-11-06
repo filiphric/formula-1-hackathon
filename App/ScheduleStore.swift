@@ -11,6 +11,7 @@ final class ScheduleStore {
     var error: String?
     var refreshFailed = false
     private var loadedKey: String?
+    private var validatedAt: ContinuousClock.Instant?
     private let fetch: @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     init(fetch: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = {
@@ -20,11 +21,20 @@ final class ScheduleStore {
     }
     private var requestID = UUID()
 
+    func calendarIsStale() -> Bool {
+        guard let schedule, let validatedAt else { return true }
+        let elapsed = validatedAt.duration(to: .now)
+        return refreshFailed || schedule.isStale(elapsedSinceValidation: Double(elapsed.components.seconds))
+    }
+
     func load(endpoint: String, season: Int) async {
         let id = UUID()
         requestID = id
         let key = "\(endpoint)|\(season)"
-        if loadedKey != key { schedule = nil }
+        if loadedKey != key {
+            schedule = nil
+            validatedAt = nil
+        }
         refreshFailed = false
         error = nil
         loading = true
@@ -47,6 +57,7 @@ final class ScheduleStore {
             guard result.season == season else { throw URLError(.cannotParseResponse) }
             schedule = result
             loadedKey = key
+            validatedAt = .now
         } catch {
             if !Task.isCancelled && requestID == id {
                 refreshFailed = schedule != nil

@@ -20,8 +20,10 @@ public struct RaceSchedule: Codable, Sendable {
 
     public var fetchedDate: Date? { parseScheduleDate(fetchedAt) }
 
-    public func isStale(at now: Date) -> Bool {
-        stale || fetchedDate.map { !(0..<900).contains(now.timeIntervalSince($0)) } ?? true
+    public func isStale(elapsedSinceValidation elapsed: TimeInterval) -> Bool {
+        // Backend freshness is authoritative at receipt; device/server wall clocks
+        // need not agree. The client expires its view using elapsed time only.
+        stale || !(0..<900).contains(elapsed)
     }
 
     public func nextRace(at now: Date) -> RaceWeekend? {
