@@ -15,8 +15,9 @@ struct DashboardView: View {
                 if let snapshot = store.snapshot {
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: RacingStyle.Space.xl) {
-                            timingBoard(snapshot).frame(width: 500)
-                            TrackMapView(snapshot: snapshot, connected: store.connected).frame(minWidth: 380)
+                            // Side by side the two cards are the same height, so no dead block sits under the shorter one.
+                            timingBoard(snapshot, fillsHeight: true).frame(width: 500)
+                            TrackMapView(snapshot: snapshot, connected: store.connected, fillsHeight: true).frame(minWidth: 380)
                         }
                         VStack(spacing: RacingStyle.Space.xl) {
                             timingBoard(snapshot)
@@ -73,14 +74,16 @@ struct DashboardView: View {
         }
     }
 
-    private func timingBoard(_ snapshot: TimingSnapshot) -> some View {
+    private func timingBoard(_ snapshot: TimingSnapshot, fillsHeight: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
             RacingSectionTitle(title: "Leaderboard")
             if snapshot.drivers.isEmpty {
                 Text("Waiting for driver data…").font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
             }
             TimingTower(drivers: snapshot.drivers, showsGap: snapshot.drivers.hasUsableGaps)
-        }.racingCard()
+        }
+        .frame(maxHeight: fillsHeight ? .infinity : nil, alignment: .top)
+        .racingCard()
     }
 
     private func raceControl(_ snapshot: TimingSnapshot) -> some View {

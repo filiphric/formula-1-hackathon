@@ -3,6 +3,9 @@ import SwiftUI
 struct TrackMapView: View {
     let snapshot: TimingSnapshot
     let connected: Bool
+    /// True beside the leaderboard: the card stretches to the row's height and the map fills what is left
+    /// (the circuit keeps its own proportions, centred). Stacked, the map takes the circuit's own shape.
+    var fillsHeight = false
     @State private var selectedDriver: Int?
     @ScaledMetric(relativeTo: .caption) private var markerSize = 28
     @ScaledMetric(relativeTo: .caption) private var labelWidth = 48
@@ -33,9 +36,14 @@ struct TrackMapView: View {
                         .foregroundStyle(snapshot.mode == "demo" ? Color(RacingPalette.statusDemo) : RacingStyle.textSecondary)
                 }
                 if let track = snapshot.track {
-                    map(track, now: context.date)
-                        .aspectRatio(mapAspect(track), contentMode: .fit)
-                        .frame(maxWidth: .infinity)
+                    if fillsHeight {
+                        map(track, now: context.date)
+                            .frame(maxWidth: .infinity, minHeight: 280, maxHeight: .infinity)
+                    } else {
+                        map(track, now: context.date)
+                            .aspectRatio(mapAspect(track), contentMode: .fit)
+                            .frame(maxWidth: .infinity)
+                    }
                 } else {
                     ContentUnavailableView("Waiting for track layout", systemImage: "map",
                         description: Text("The circuit outline appears after a complete timed lap is available. Driver locations require a backend with track support."))
@@ -43,6 +51,7 @@ struct TrackMapView: View {
                 }
                 footer(now: context.date)
             }
+            .frame(maxHeight: fillsHeight ? .infinity : nil, alignment: .top)
             .racingCard()
         }
         .onChange(of: snapshot.session?.start) { selectedDriver = nil }

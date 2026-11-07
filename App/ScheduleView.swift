@@ -228,7 +228,9 @@ private struct WeekendCard: View {
     }
 
     private var chevron: some View {
-        Image(systemName: "chevron.right").font(RacingStyle.Typography.bodyStrong).foregroundStyle(secondary)
+        Image(systemName: "chevron.right").font(RacingStyle.Typography.bodyStrong)
+            // Tertiary for every row, so the chevron is never brighter than the title beside it.
+            .foregroundStyle(RacingStyle.textTertiary)
             .rotationEffect(.degrees(expanded ? 90 : 0))
             .frame(minWidth: 44, minHeight: 44)
             .accessibilityHidden(true)
@@ -237,15 +239,19 @@ private struct WeekendCard: View {
     /// The next race: big title, countdown to lights out, open by default.
     private var hero: some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.s) {
-            HStack(alignment: .top, spacing: RacingStyle.Space.s) {
+            // The chevron shares the badge row and is centred on it, like the chevron on every other row.
+            HStack(alignment: .center, spacing: RacingStyle.Space.s) {
                 // The badge and the round never break mid-word: when they do not fit side by side they stack.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: RacingStyle.Space.s) { badge; roundLabel }
-                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { badge; roundLabel }
+                    HStack(spacing: RacingStyle.Space.s) { badge; roundLabel(stacked: false) }
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { badge; roundLabel(stacked: false) }
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { badge; roundLabel(stacked: true) }
                 }
                 Spacer(minLength: RacingStyle.Space.s)
                 chevron
             }
+            // The chevron's 44pt hit area is taller than the badge; pull the row back up so the card keeps its rhythm.
+            .padding(.vertical, -RacingStyle.Space.s)
             Text(race.name).font(RacingStyle.Typography.display).racingHeading().multilineTextAlignment(.leading)
             Text(race.circuit).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
             ViewThatFits(in: .horizontal) {
@@ -262,9 +268,12 @@ private struct WeekendCard: View {
             .background(RacingStyle.red, in: Capsule())
     }
 
-    private var roundLabel: some View {
-        Text("Round \(race.round) · \(race.country)").racingLabel().foregroundStyle(RacingStyle.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
+    /// "Round 20 · Brazil" on one line; stacked ("Round 20" over "Brazil", no separator) when it does not fit.
+    private func roundLabel(stacked: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(race.roundLines(stacked: stacked), id: \.self) { Text($0).lineLimit(1).fixedSize() }
+        }
+        .racingLabel().foregroundStyle(RacingStyle.textSecondary)
     }
 
     @ViewBuilder private var dates: some View {

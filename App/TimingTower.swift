@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The leaderboard as a timing tower: position, team tag, driver code, GAP, LAST LAP, tyre.
 /// It tries the widest column set first and drops team, then last lap, before it ever scrolls.
-/// Sessions without gaps drop GAP and keep LAST LAP at every width.
+/// Sessions without gaps drop GAP, keep LAST LAP at every width, and give the room GAP leaves to the
+/// team name (truncating), which only the narrowest layout drops.
 struct TimingTower: View {
     let drivers: [TimingDriver]
     /// False in sessions that report no gaps (practice, qualifying): the GAP column would be all dashes.
@@ -71,7 +72,7 @@ struct TimingTower: View {
             .accessibilityHidden(true)
             Divider().overlay(RacingStyle.raised).gridCellUnsizedAxes(.horizontal)
             ForEach(drivers) { driver in
-                row(driver, columns)
+                row(driver, layout, columns)
                 if driver.id != drivers.last?.id {
                     Divider().overlay(RacingStyle.raised).gridCellUnsizedAxes(.horizontal)
                 }
@@ -79,7 +80,7 @@ struct TimingTower: View {
         }
     }
 
-    private func row(_ driver: TimingDriver, _ columns: [TimingColumn]) -> some View {
+    private func row(_ driver: TimingDriver, _ layout: TimingLayout, _ columns: [TimingColumn]) -> some View {
         GridRow {
             Text(driver.position.map(String.init) ?? "—")
                 .font(RacingStyle.Typography.figure)
@@ -92,7 +93,10 @@ struct TimingTower: View {
                 .frame(maxWidth: columns.contains(.team) ? nil : .infinity, alignment: .leading)
             if columns.contains(.team) {
                 Text(driver.team).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
-                    .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(1).truncationMode(.tail)
+                    // Wide wants the whole name. Below that the name asks for little and truncates, so
+                    // this layout is chosen whenever a short team name fits.
+                    .frame(minWidth: 0, idealWidth: layout.showsFullTeamName ? nil : 48, maxWidth: .infinity, alignment: .leading)
             }
             if columns.contains(.gap) { gap(driver) }
             if columns.contains(.lastLap) {
