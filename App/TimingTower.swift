@@ -58,13 +58,13 @@ struct TimingTower: View {
         let columns = layout.columns(showingGap: showsGap)
         return Grid(alignment: .leading, horizontalSpacing: RacingStyle.Space.m, verticalSpacing: 0) {
             GridRow {
-                Text("Pos").gridColumnAlignment(.trailing)
+                Image(systemName: "number").help("Position").gridColumnAlignment(.trailing)
                 Color.clear.frame(width: 4, height: 1)
-                Text("Driver").gridColumnAlignment(.leading)
-                if columns.contains(.team) { Text("Team").gridColumnAlignment(.leading) }
+                Image(systemName: "person.fill").help("Driver").gridColumnAlignment(.leading)
+                if columns.contains(.team) { Image(systemName: "person.2.fill").help("Team").gridColumnAlignment(.leading) }
                 if columns.contains(.gap) { Text("Gap").gridColumnAlignment(.trailing) }
                 if columns.contains(.lastLap) { Text("Last lap").gridColumnAlignment(.trailing) }
-                Text("Tyre").gridColumnAlignment(.center)
+                Image(systemName: "circle.circle").help("Tyre").gridColumnAlignment(.center)
             }
             .racingLabel().foregroundStyle(RacingStyle.textSecondary)
             .lineLimit(1).fixedSize()
@@ -112,7 +112,7 @@ struct TimingTower: View {
     @ViewBuilder private func gap(_ driver: TimingDriver) -> some View {
         if driver.isLeader {
             // A filled brand-red chip, so the leader is a shape and not only a word.
-            Text("LEADER").font(RacingStyle.Typography.label).tracking(1)
+            Image(systemName: "crown.fill").font(RacingStyle.Typography.label).accessibilityLabel("Leader").help("Leader")
                 .lineLimit(1).fixedSize()
                 .foregroundStyle(RacingStyle.onRed)
                 .padding(.horizontal, RacingStyle.Space.s).padding(.vertical, RacingStyle.Space.xs)

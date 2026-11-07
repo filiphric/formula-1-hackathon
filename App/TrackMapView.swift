@@ -20,12 +20,12 @@ struct TrackMapView: View {
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 ViewThatFits(in: .horizontal) {
                     HStack {
-                        RacingSectionTitle(title: "Driver tracker", subtitle: "Approximate positions")
+                        Label("Approximate positions", systemImage: "location").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
                         Spacer()
                         driverPicker(disabled: notLive)
                     }
                     VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-                        RacingSectionTitle(title: "Driver tracker", subtitle: "Approximate positions")
+                        Label("Approximate positions", systemImage: "location").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
                         driverPicker(disabled: notLive)
                     }
                 }
@@ -69,7 +69,7 @@ struct TrackMapView: View {
             ForEach(snapshot.drivers) { driver in
                 Text("\(driver.number) · \(driver.acronym)").tag(Optional(driver.number))
             }
-        }.fixedSize()
+        }.labelsHidden().fixedSize()
             // Nothing to follow when no position is live.
             .disabled(disabled)
     }
@@ -210,7 +210,7 @@ struct TrackMapView: View {
             Text("Newest position received \(DurationText.compact(seconds: age)) ago")
                 .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         } else {
-            Text(snapshot.locationSummary(at: now))
+            Label(snapshot.locationSummary(at: now), systemImage: "location.circle")
                 .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         }
     }

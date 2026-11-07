@@ -356,3 +356,20 @@ public enum MarkerSpread {
         return nil
     }
 }
+
+
+extension AppSection {
+    /// Familiar navigation symbols; raw values remain the spoken names.
+    public var symbol: String { self == .live ? "flag.checkered" : "calendar" }
+}
+
+extension FeedStatus {
+    /// The pill already names the state. Only exceptions need a second line.
+    public var timingDetail: String? {
+        switch kind {
+        case .stale: ageText.map { "Timing \($0) old" } ?? "Timing age unknown"
+        case .offline: "Reconnecting…"
+        case .live, .connecting: nil
+        }
+    }
+}
