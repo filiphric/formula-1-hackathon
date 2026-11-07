@@ -95,11 +95,17 @@ private struct AppBar: View {
 
     private var bar: some View {
         HStack(spacing: RacingStyle.Space.m) {
-            Image("F1Logo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 64, height: 16)
-                .accessibilityLabel("Formula 1")
+            VStack(spacing: RacingStyle.Space.xs) {
+                Image("F1Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 64, height: 16)
+                Text("Unofficial")
+                    .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Unofficial Formula 1 companion")
+            .help("Unofficial Formula 1 companion · Powered by OpenF1")
             if showsTabs {
                 HStack(spacing: RacingStyle.Space.xs) {
                     ForEach(AppSection.allCases) { section in
