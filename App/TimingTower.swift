@@ -47,7 +47,7 @@ struct TimingTower: View {
                 .font(RacingStyle.Typography.figure)
                 .lineLimit(1).fixedSize()
                 .frame(minHeight: rowHeight)
-            RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
+            RoundedRectangle(cornerRadius: RacingStyle.Radius.tag).fill(Color.team(driver.color))
                 .frame(width: 4, height: rowHeight * 0.6)
             Text(driver.acronym).font(RacingStyle.Typography.code)
                 .lineLimit(1).fixedSize()

@@ -33,6 +33,8 @@ enum RacingStyle {
     enum Radius {
         static let card: CGFloat = 12
         static let row: CGFloat = 8
+        /// The thin team-colour tag beside a driver.
+        static let tag: CGFloat = 2
     }
 
     /// The type scale, defined once. System default design (never rounded); heavy and black

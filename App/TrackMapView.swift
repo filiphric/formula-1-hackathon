@@ -140,7 +140,7 @@ struct TrackMapView: View {
     @ViewBuilder private func footer(now: Date) -> some View {
         if let driver = snapshot.drivers.first(where: { $0.number == selectedDriver }) {
             HStack(spacing: RacingStyle.Space.m) {
-                RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color)).frame(width: 4, height: 36)
+                RoundedRectangle(cornerRadius: RacingStyle.Radius.tag).fill(Color.team(driver.color)).frame(width: 4, height: 36)
                 VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
                     Text(driver.acronym).font(RacingStyle.Typography.code)
                     Text("\(driver.name) · \(driver.team)").font(RacingStyle.Typography.caption)

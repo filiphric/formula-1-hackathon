@@ -22,13 +22,19 @@ contact OpenF1 or replay a real race.
 
 ## Race weekend design
 
-The native interface uses the official F1 app as visual reference: dark panels,
-red accents, bold rounded headings, a striped race header and compact timing rows.
-The leaderboard and driver tracker sit side by side in wide windows and stack on
-phones and narrow windows. The calendar uses the same cards with numbered rounds
-and a red next-race marker. Tyres show standard colored S/M/H/I/W rings, with `?`
-for missing or unrecognized compounds and spoken labels for accessibility.
-Demo, connection and stale-data labels remain visible; this is an unofficial companion.
+The native interface takes the official F1 app as its visual reference: a dark canvas,
+heavy sans-serif type and one brand-red accent. The window has a single slim app bar
+(logo, name, one feed-status pill) and one session hero (circuit, session, how fresh the
+timing is). The leaderboard is a timing tower with separate GAP and LAST LAP columns,
+a bold position, a team-colour tag, a three-letter code and a red LEADER marker; narrow
+widths drop team, then last lap, before the tower scrolls. The driver tracker draws the
+circuit as a track surface with a chequered start/finish mark; selecting a driver labels
+that driver's marker and shows their detail. The calendar makes the next race a hero with
+a live countdown and keeps every other weekend a compact, collapsible row. Spacing,
+radius and type come from `RacingStyle.Space`, `Radius` and `Typography`. Tyres show
+standard coloured S/M/H/I/W rings, with `?` for missing or unrecognised compounds and
+spoken labels for accessibility. Demo, connection and stale-data labels remain visible;
+this is an unofficial companion. `-initialTab Schedule` opens the calendar first.
 
 ## Live track view
 
