@@ -19,7 +19,9 @@ struct TrackMapView: View {
     private let surfaceWidth: CGFloat = 12
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: reduceMotion || !connected || !animationActive ? 1 : 1.0 / 60)) { context in
+        // The card chrome (titles, picker, captions, track, footer) only needs the clock for its staleness
+        // wording, so it updates about once a second. Only the markers layer runs at the display rate.
+        TimelineView(.animation(minimumInterval: 1)) { context in
             let notLive = snapshot.allPositionsStale(at: context.date)
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 ViewThatFits(in: .horizontal) {
@@ -111,19 +113,20 @@ struct TrackMapView: View {
             if let projection = currentDrawing.projection {
                 let outline = currentDrawing.outline
                 let notLive = snapshot.positionsNotLiveCaption(at: now, connected: connected)
-                // Stale positions are one old spot: with every position stale nothing is plotted.
-                let spots = notLive == nil ? markerSpots(projection, size: geometry.size, now: now) : [:]
                 ZStack {
                     // Track surface: a wide dark kerb outline with a lighter strip inside it.
                     outline.stroke(RacingStyle.trackEdge, style: StrokeStyle(lineWidth: kerbWidth, lineCap: .round, lineJoin: .round))
                     outline.stroke(RacingStyle.trackSurface, style: StrokeStyle(lineWidth: surfaceWidth, lineCap: .round, lineJoin: .round))
                     startFinish(currentDrawing)
-                    ForEach(snapshot.drivers) { driver in
-                        if let location = driver.location, let point = spots[driver.number] {
-                            marker(driver, location, at: point, now: now)
-                        }
+                    // Stale positions are one old spot: with every position stale nothing is plotted.
+                    if notLive == nil {
+                        MarkerLayer(
+                            drivers: snapshot.drivers, motions: motions, projection: projection, size: geometry.size,
+                            selectedDriver: selectedDriver, connected: connected, reduceMotion: reduceMotion,
+                            animating: animationActive, markerSize: markerSize, labelWidth: labelWidth, labelHeight: labelHeight,
+                            select: { selectedDriver = $0 })
+                        accessibilityMarkers(projection, size: geometry.size, now: now)
                     }
-                    selectedLabel(spots, size: geometry.size, now: now)
                     if let notLive {
                         // Capped like other chrome: a caption that grows with the text would cover the whole map.
                         Text(notLive).font(RacingStyle.Typography.bodyStrong)
@@ -147,21 +150,24 @@ struct TrackMapView: View {
         }
     }
 
-    /// Where each located driver's marker is drawn: the projected position, nudged apart in
-    /// stable car-number order when markers would overlap.
-    private func markerSpots(_ projection: TrackProjection, size: CGSize, now: Date) -> [Int: TrackPoint] {
-        let located = snapshot.drivers.sorted { $0.number < $1.number }.compactMap { driver -> (Int, TrackPoint)? in
-            guard let location = driver.location else { return nil }
-            let rendered = connected && !location.isStale(at: now)
-                ? motions[driver.number]?.point(at: now, animated: !reduceMotion) : nil
-            guard let point = projection.project(x: rendered?.x ?? location.x, y: rendered?.y ?? location.y) else { return nil }
-            return (driver.number, point)
+    /// The markers are drawn, not views, so VoiceOver gets one invisible element per driver. They sit where
+    /// the marker is as of this once-a-second update; touches are handled by the markers layer itself.
+    private func accessibilityMarkers(_ projection: TrackProjection, size: CGSize, now: Date) -> some View {
+        let spots = MarkerLayout.spots(drivers: snapshot.drivers, motions: motions, projection: projection, now: now,
+                                       connected: connected, animated: !reduceMotion, markerSize: Double(markerSize),
+                                       width: Double(size.width), height: Double(size.height))
+        return ForEach(snapshot.drivers) { driver in
+            if let location = driver.location, let point = spots[driver.number] {
+                let stale = location.isStale(at: now)
+                Color.clear.frame(width: max(markerSize, 44), height: max(markerSize, 44))
+                    .position(x: point.x, y: point.y)
+                    .allowsHitTesting(false)
+                    .accessibilityElement()
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("\(driver.name), car \(driver.number), \(stale ? "stale location" : "location received"), \(location.date)")
+                    .accessibilityAction { selectedDriver = selectedDriver == driver.number ? nil : driver.number }
+            }
         }
-        let radius = Double(markerSize) / 2
-        let bounds = MarkerLabelPlacement.Rect(x: radius, y: radius, width: max(0, Double(size.width) - 2 * radius),
-                                               height: max(0, Double(size.height) - 2 * radius))
-        let spread = MarkerSpread.separated(located.map(\.1), minDistance: Double(markerSize) * 0.95, bounds: bounds)
-        return Dictionary(uniqueKeysWithValues: zip(located.map(\.0), spread))
     }
 
     /// A chequered tick across the track at the first point of the lap, turned to face the direction of travel.
@@ -170,43 +176,6 @@ struct TrackMapView: View {
             ChequeredTick()
                 .rotationEffect(.radians(angle))
                 .position(x: start.x, y: start.y)
-                .accessibilityHidden(true)
-        }
-    }
-
-    private func marker(_ driver: TimingDriver, _ location: DriverLocation, at point: TrackPoint, now: Date) -> some View {
-        let stale = location.isStale(at: now)
-        let selected = selectedDriver == driver.number
-        return Button { selectedDriver = selected ? nil : driver.number } label: {
-            Text(String(driver.number)).font(RacingStyle.Typography.label.monospacedDigit())
-                .foregroundStyle(Color(RacingPalette.markerInk)).frame(width: markerSize, height: markerSize)
-                .background(Color.team(driver.color), in: Circle())
-                .overlay(Circle().stroke(Color(RacingPalette.markerInk), lineWidth: selected ? 3 : 1))
-        }
-        .buttonStyle(.plain)
-        .opacity(stale ? 0.35 : selectedDriver == nil || selected ? 1 : 0.4)
-        .position(x: point.x, y: point.y)
-        .zIndex(selected ? 1 : 0)
-        .accessibilityLabel("\(driver.name), car \(driver.number), \(stale ? "stale location" : "location received"), \(location.date)")
-    }
-
-    /// The selected driver's code, in a tag beside the marker that never covers it.
-    @ViewBuilder private func selectedLabel(_ spots: [Int: TrackPoint], size: CGSize, now: Date) -> some View {
-        if let driver = snapshot.drivers.first(where: { $0.number == selectedDriver }),
-           let location = driver.location,
-           let point = spots[driver.number] {
-            let frame = MarkerLabelPlacement.frame(
-                markerX: point.x, markerY: point.y, markerRadius: markerSize / 2 + 2,
-                labelWidth: labelWidth, labelHeight: labelHeight,
-                bounds: .init(x: 0, y: 0, width: size.width, height: size.height))
-            Text(driver.acronym).font(RacingStyle.Typography.label).tracking(1)
-                .foregroundStyle(Color(RacingPalette.onStatus))
-                .frame(width: labelWidth, height: labelHeight)
-                .background(Color(RacingPalette.textPrimary), in: Capsule())
-                .overlay(Capsule().stroke(Color.team(driver.color), lineWidth: 2))
-                .opacity(location.isStale(at: now) ? 0.5 : 1)
-                .position(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2)
-                .zIndex(2)
                 .accessibilityHidden(true)
         }
     }
@@ -239,6 +208,95 @@ struct TrackMapView: View {
             Text(snapshot.locationSummary(at: now))
                 .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         }
+    }
+}
+
+/// The only view that runs at the display rate. It draws every marker into one Canvas at its exact
+/// fractional position (anti-aliased, so slow motion is smooth rather than stepping a whole pixel at a time),
+/// so nothing else in the card is re-evaluated per frame.
+private struct MarkerLayer: View {
+    let drivers: [TimingDriver]
+    let motions: [Int: DriverMotion]
+    let projection: TrackProjection
+    let size: CGSize
+    let selectedDriver: Int?
+    let connected: Bool
+    let reduceMotion: Bool
+    let animating: Bool
+    let markerSize: CGFloat
+    let labelWidth: CGFloat
+    let labelHeight: CGFloat
+    let select: (Int?) -> Void
+
+    private static let labelID = "selected-label"
+
+    var body: some View {
+        // Display-rate frames while a position is easing, one a second otherwise. The timeline is rebuilt when that
+        // changes: a running timeline keeps its old (up to one second) tick before it notices a new schedule.
+        TimelineView(.animation(minimumInterval: animatesPerFrame ? nil : 1)) { context in
+            let now = context.date
+            Canvas { graphics, canvasSize in
+                let spots = spots(at: now)
+                for driver in drivers.sorted(by: drawingOrder) {
+                    guard let location = driver.location, let point = spots[driver.number],
+                          let symbol = graphics.resolveSymbol(id: driver.number) else { continue }
+                    var layer = graphics
+                    layer.opacity = location.isStale(at: now) ? 0.35 : selectedDriver == nil || selectedDriver == driver.number ? 1 : 0.4
+                    layer.draw(symbol, at: CGPoint(x: point.x, y: point.y))
+                }
+                // The selected driver's code, in a tag beside the marker that never covers it.
+                if let driver = drivers.first(where: { $0.number == selectedDriver }), let location = driver.location,
+                   let point = spots[driver.number], let label = graphics.resolveSymbol(id: Self.labelID) {
+                    let frame = MarkerLabelPlacement.frame(
+                        markerX: point.x, markerY: point.y, markerRadius: markerSize / 2 + 2,
+                        labelWidth: labelWidth, labelHeight: labelHeight,
+                        bounds: .init(x: 0, y: 0, width: canvasSize.width, height: canvasSize.height))
+                    var layer = graphics
+                    layer.opacity = location.isStale(at: now) ? 0.5 : 1
+                    layer.draw(label, at: CGPoint(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2))
+                }
+            } symbols: {
+                ForEach(drivers) { driver in marker(driver).tag(driver.number) }
+                if let driver = drivers.first(where: { $0.number == selectedDriver }) { label(driver).tag(Self.labelID) }
+            }
+            .accessibilityHidden(true)
+            .gesture(SpatialTapGesture().onEnded { tap in
+                let hit = MarkerLayout.driver(at: TrackPoint(x: tap.location.x, y: tap.location.y),
+                                              in: spots(at: Date()), radius: max(Double(markerSize), 44) / 2)
+                if let hit { select(selectedDriver == hit ? nil : hit) }
+            })
+        }
+        .id(animatesPerFrame)
+    }
+
+    private var animatesPerFrame: Bool { animating && connected && !reduceMotion }
+
+    private func spots(at now: Date) -> [Int: TrackPoint] {
+        MarkerLayout.spots(drivers: drivers, motions: motions, projection: projection, now: now,
+                           connected: connected, animated: !reduceMotion, markerSize: Double(markerSize),
+                           width: Double(size.width), height: Double(size.height))
+    }
+
+    /// Back to front: the selected driver's marker is drawn last, on top.
+    private func drawingOrder(_ a: TimingDriver, _ b: TimingDriver) -> Bool {
+        let (aSelected, bSelected) = (a.number == selectedDriver, b.number == selectedDriver)
+        return aSelected == bSelected ? a.number < b.number : bSelected
+    }
+
+    private func marker(_ driver: TimingDriver) -> some View {
+        let selected = selectedDriver == driver.number
+        return Text(String(driver.number)).font(RacingStyle.Typography.label.monospacedDigit())
+            .foregroundStyle(Color(RacingPalette.markerInk)).frame(width: markerSize, height: markerSize)
+            .background(Color.team(driver.color), in: Circle())
+            .overlay(Circle().stroke(Color(RacingPalette.markerInk), lineWidth: selected ? 3 : 1))
+    }
+
+    private func label(_ driver: TimingDriver) -> some View {
+        Text(driver.acronym).font(RacingStyle.Typography.label).tracking(1)
+            .foregroundStyle(Color(RacingPalette.onStatus))
+            .frame(width: labelWidth, height: labelHeight)
+            .background(Color(RacingPalette.textPrimary), in: Capsule())
+            .overlay(Capsule().stroke(Color.team(driver.color), lineWidth: 2))
     }
 }
 
