@@ -61,3 +61,41 @@ private func trackSnapshot(mode: String = "live", upstream: String = "connected"
     let stale = try #require(TrackLayout.parseDate("2026-11-06T12:00:20Z"))
     #expect(try trackSnapshot().trackStatus(at: stale, connected: true) == "Stale · No recent driver locations")
 }
+
+// P-92: a one-second update from x=0 to x=100 must show x=50 halfway,
+// then stop at x=100; it must never invent motion after the last sample.
+@Test func driverMotionIsContinuousBoundedAndRetargetsWithoutJumping() throws {
+    let time = try #require(TrackLayout.parseDate("2026-11-07T12:00:00Z"))
+    func location(_ x: Double, _ second: Int) throws -> DriverLocation {
+        try JSONDecoder().decode(DriverLocation.self, from: Data("""
+        {"x":\(x),"y":20,"date":"2026-11-07T12:00:0\(second)Z"}
+        """.utf8))
+    }
+    var motion = DriverMotion()
+    motion.receive(try location(0, 0), at: time)
+    motion.receive(try location(100, 1), at: time.addingTimeInterval(1))
+    #expect(motion.point(at: time.addingTimeInterval(1))?.x == 0)
+    #expect(motion.point(at: time.addingTimeInterval(1.5))?.x == 50)
+    motion.receive(try location(150, 2), at: time.addingTimeInterval(1.5))
+    #expect(motion.point(at: time.addingTimeInterval(1.5))?.x == 50)
+    #expect(motion.point(at: time.addingTimeInterval(2))?.x == 100)
+    #expect(motion.point(at: time.addingTimeInterval(9))?.x == 150)
+    motion.receive(try location(10, 1), at: time.addingTimeInterval(2))
+    #expect(motion.point(at: time.addingTimeInterval(9))?.x == 150)
+    #expect(motion.point(at: time.addingTimeInterval(2), animated: false)?.x == 150)
+    motion.receive(try location(300, 8), at: time.addingTimeInterval(8))
+    #expect(motion.point(at: time.addingTimeInterval(8))?.x == 300)
+    motion = DriverMotion()
+    motion.receive(try location(500, 9), at: time.addingTimeInterval(9))
+    #expect(motion.point(at: time.addingTimeInterval(9))?.x == 500)
+}
+
+@Test func cachedLocationTimestampPreservesTheWireContract() throws {
+    let location = DriverLocation(x: 12, y: 34, date: "2026-11-07T12:00:01.250Z")
+    let encoded = try JSONEncoder().encode(location)
+    let keys = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+    #expect(Set(keys.keys) == ["x", "y", "date"])
+    let decoded = try JSONDecoder().decode(DriverLocation.self, from: encoded)
+    #expect(decoded.timestamp == TrackLayout.parseDate("2026-11-07T12:00:01.250Z"))
+    #expect(decoded.timestamp == location.timestamp)
+}

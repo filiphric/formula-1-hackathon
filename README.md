@@ -54,6 +54,12 @@ not lane-level tracking. A new session clears both the outline and old locations
 `track` and driver `location` are optional additions to the existing WebSocket
 contract; older snapshots still decode and display a waiting state.
 
+Markers interpolate between received samples over at most one second, using a
+frame-driven SwiftUI timeline. They stop at the latest sample without predicting
+future positions. Long gaps, stale samples, reconnects and session changes reset
+motion; Reduce Motion displays the received position immediately. Marker separation
+uses stable car-number order so timing-order changes do not reshuffle overlaps.
+
 Demo mode animates four markers around an explicitly fictional circuit, without
 contacting OpenF1. It does not reproduce a real race. Live location delivery needs
 a paid OpenF1 connection and an active session.

@@ -7,6 +7,8 @@ struct TrackMapView: View {
     /// (the circuit keeps its own proportions, centred). Stacked, the map takes the circuit's own shape.
     var fillsHeight = false
     @State private var selectedDriver: Int?
+    @State private var motions: [Int: DriverMotion] = [:]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .caption) private var markerSize = 28
     @ScaledMetric(relativeTo: .caption) private var labelWidth = 48
     @ScaledMetric(relativeTo: .caption) private var labelHeight = 22
@@ -15,7 +17,7 @@ struct TrackMapView: View {
     private let surfaceWidth: CGFloat = 12
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(.animation(minimumInterval: reduceMotion || !connected || snapshot.allPositionsStale(at: Date()) ? 1 : 1.0 / 60)) { context in
             let notLive = snapshot.allPositionsStale(at: context.date)
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 ViewThatFits(in: .horizontal) {
@@ -54,8 +56,26 @@ struct TrackMapView: View {
             .frame(maxHeight: fillsHeight ? .infinity : nil, alignment: .top)
             .racingCard()
         }
-        .onChange(of: snapshot.session?.start) { selectedDriver = nil }
+        .onAppear { receivePositions() }
+        .onChange(of: snapshot.drivers.map { $0.location?.date }) { receivePositions() }
+        .onChange(of: connected) { motions = [:]; receivePositions() }
+        .onChange(of: snapshot.session?.start) { selectedDriver = nil; motions = [:]; receivePositions() }
             }
+
+    private func receivePositions() {
+        let now = Date()
+        let numbers = Set(snapshot.drivers.map(\.number))
+        motions = motions.filter { numbers.contains($0.key) }
+        for driver in snapshot.drivers {
+            guard let location = driver.location else {
+                motions[driver.number] = nil
+                continue
+            }
+            var motion = motions[driver.number] ?? DriverMotion()
+            motion.receive(location, at: now, animated: connected && !reduceMotion)
+            motions[driver.number] = motion
+        }
+    }
 
     /// The map takes the circuit's own shape (kept between 1:1 and 2:1) so it fills the card
     /// instead of floating in a fixed-height box.
@@ -89,7 +109,7 @@ struct TrackMapView: View {
                 }
                 let notLive = snapshot.positionsNotLiveCaption(at: now, connected: connected)
                 // Stale positions are one old spot: with every position stale nothing is plotted.
-                let spots = notLive == nil ? markerSpots(projection, size: geometry.size) : [:]
+                let spots = notLive == nil ? markerSpots(projection, size: geometry.size, now: now) : [:]
                 ZStack {
                     // Track surface: a wide dark kerb outline with a lighter strip inside it.
                     outline.stroke(RacingStyle.trackEdge, style: StrokeStyle(lineWidth: kerbWidth, lineCap: .round, lineJoin: .round))
@@ -123,10 +143,13 @@ struct TrackMapView: View {
     }
 
     /// Where each located driver's marker is drawn: the projected position, nudged apart in
-    /// timing order when markers would overlap.
-    private func markerSpots(_ projection: TrackProjection, size: CGSize) -> [Int: TrackPoint] {
-        let located = snapshot.drivers.compactMap { driver -> (Int, TrackPoint)? in
-            guard let location = driver.location, let point = projection.project(x: location.x, y: location.y) else { return nil }
+    /// stable car-number order when markers would overlap.
+    private func markerSpots(_ projection: TrackProjection, size: CGSize, now: Date) -> [Int: TrackPoint] {
+        let located = snapshot.drivers.sorted { $0.number < $1.number }.compactMap { driver -> (Int, TrackPoint)? in
+            guard let location = driver.location else { return nil }
+            let rendered = connected && !location.isStale(at: now)
+                ? motions[driver.number]?.point(at: now, animated: !reduceMotion) : nil
+            guard let point = projection.project(x: rendered?.x ?? location.x, y: rendered?.y ?? location.y) else { return nil }
             return (driver.number, point)
         }
         let radius = Double(markerSize) / 2

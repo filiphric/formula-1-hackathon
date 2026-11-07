@@ -356,3 +356,36 @@ public enum MarkerSpread {
         return nil
     }
 }
+
+/// Rendering only: ease between received coordinates over one feed interval.
+/// Never extrapolates; timestamps on DriverLocation remain the source of freshness.
+public struct DriverMotion: Sendable {
+    private var from: TrackPoint?
+    private var target: DriverLocation?
+    private var started = Date.distantPast
+    private var duration: TimeInterval = 0
+
+    public init() {}
+
+    public mutating func receive(_ location: DriverLocation, at now: Date, animated: Bool = true) {
+        guard let timestamp = location.timestamp,
+              location.x.isFinite, location.y.isFinite else { return }
+        if let old = target?.timestamp, timestamp <= old { return }
+        let previous = point(at: now)
+        let gap = target?.timestamp.map { timestamp.timeIntervalSince($0) }
+        from = previous
+        duration = animated && !location.isStale(at: now) && previous != nil
+            && gap.map { $0 > 0 && $0 <= 3 } == true ? min(gap ?? 1, 1) : 0
+        target = location
+        started = now
+    }
+
+    public func point(at now: Date, animated: Bool = true) -> TrackPoint? {
+        guard let target else { return nil }
+        let end = TrackPoint(x: target.x, y: target.y)
+        guard animated, !target.isStale(at: now), let from, duration > 0 else { return end }
+        let fraction = min(max(now.timeIntervalSince(started) / duration, 0), 1)
+        return TrackPoint(x: from.x + (end.x - from.x) * fraction,
+                          y: from.y + (end.y - from.y) * fraction)
+    }
+}
