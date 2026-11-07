@@ -72,10 +72,13 @@ public enum TimingLayout: CaseIterable, Sendable {
 }
 
 extension Collection where Element == TimingDriver {
-    /// A GAP column needs at least two drivers with a gap to compare. Practice and qualifying
-    /// report none (or one), and a column of dashes is noise, so it is dropped there.
+    /// A GAP column needs gaps to compare: two drivers with one, or, on a board of two, the one trailing
+    /// driver (the leader has none to show). Practice and qualifying report none (or a stray one among
+    /// many drivers), and a column of dashes is noise, so it is dropped there.
     public var hasUsableGaps: Bool {
-        filter { !($0.gap?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }.count >= 2
+        let gapped = filter { !($0.gap?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }.count
+        let trailing = Swift.max(count - 1, 1)
+        return gapped >= Swift.min(2, trailing)
     }
 }
 

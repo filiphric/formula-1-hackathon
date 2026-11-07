@@ -153,9 +153,9 @@ struct TrackMapView: View {
         let selected = selectedDriver == driver.number
         return Button { selectedDriver = selected ? nil : driver.number } label: {
             Text(String(driver.number)).font(RacingStyle.Typography.label.monospacedDigit())
-                .foregroundStyle(.white).frame(width: markerSize, height: markerSize)
+                .foregroundStyle(Color(RacingPalette.markerInk)).frame(width: markerSize, height: markerSize)
                 .background(Color.team(driver.color), in: Circle())
-                .overlay(Circle().stroke(.white, lineWidth: selected ? 3 : 1))
+                .overlay(Circle().stroke(Color(RacingPalette.markerInk), lineWidth: selected ? 3 : 1))
         }
         .buttonStyle(.plain)
         .opacity(stale ? 0.35 : selectedDriver == nil || selected ? 1 : 0.4)
@@ -225,7 +225,7 @@ private struct ChequeredTick: View {
             ForEach(0..<4, id: \.self) { row in
                 GridRow {
                     ForEach(0..<2, id: \.self) { column in
-                        Rectangle().fill((row + column).isMultiple(of: 2) ? Color.white : Color.black)
+                        Rectangle().fill((row + column).isMultiple(of: 2) ? Color(RacingPalette.chequeredLight) : Color(RacingPalette.chequeredDark))
                             .frame(width: square, height: square)
                     }
                 }

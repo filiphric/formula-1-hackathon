@@ -218,6 +218,9 @@ private struct WeekendCard: View {
             if emphasis == .next { RacingStyle.red.frame(height: 3) }
         }
         .clipShape(RoundedRectangle(cornerRadius: RacingStyle.Radius.card))
+        // The card keeps its identity as the clock moves on: when a race becomes the next one it opens,
+        // and when it passes it folds up, instead of keeping whatever state it was created with.
+        .onChange(of: emphasis) { _, new in expanded = new.startsExpanded }
     }
 
     private var spokenSummary: String {

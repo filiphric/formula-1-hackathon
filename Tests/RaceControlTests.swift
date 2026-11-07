@@ -121,3 +121,36 @@ private func driver(position: Int?, gap: String?, lapTime: Double?, compound: St
     #expect(FeedStatus.resolve(snapshot: nil, connected: false, hasError: true, now: now).spokenDescription
             == "Offline. Not connected to the timing server.")
 }
+
+// MARK: Review follow-ups
+
+@Test func aCriticalFlagIsNeverDowngradedByASafetyCarMention() {
+    // Requirement: a red flag stays a red flag (critical) even when its text names the safety car.
+    let red = message("RED FLAG - SAFETY CAR WILL LEAD THE FIELD", flag: "RED")
+    #expect(red.kind == .red)
+    #expect(red.kind.severity == .critical)
+    #expect(message("BLACK FLAG, VIRTUAL SAFETY CAR ALSO IN USE", flag: "BLACK").kind == .black)
+    // Safety-car messages without a critical flag still read as safety cars.
+    #expect(message("SAFETY CAR DEPLOYED", flag: "YELLOW").kind == .safetyCar)
+}
+
+@Test func startupUpstreamStatesShowConnectingAndFailuresStayStale() {
+    let now = TrackLayout.parseDate("2026-11-07T14:00:00Z")!
+    for state in ["connecting", "subscribing"] {
+        let status = FeedStatus.resolve(snapshot: snapshot(upstream: state, updatedAt: "2026-11-07T13:59:59Z"),
+                                        connected: true, hasError: false, now: now)
+        #expect(status.kind == .connecting)
+        #expect(status.label == "CONNECTING")
+    }
+    for state in ["reconnecting", "snapshot unavailable", "renewing token", "HTTP client unavailable"] {
+        let status = FeedStatus.resolve(snapshot: snapshot(upstream: state, updatedAt: "2026-11-07T13:59:59Z"),
+                                        connected: true, hasError: false, now: now)
+        #expect(status.kind == .stale)
+    }
+}
+
+@Test func spokenRaceControlRowIncludesTheTimeWhenThereIsOne() {
+    let row = message("CHEQUERED FLAG", flag: "CHEQUERED")
+    #expect(row.accessibilitySummary(timeText: "4:30:00 PM") == "Chequered flag, 4:30:00 PM. CHEQUERED FLAG")
+    #expect(row.accessibilitySummary(timeText: nil) == "Chequered flag. CHEQUERED FLAG")
+}

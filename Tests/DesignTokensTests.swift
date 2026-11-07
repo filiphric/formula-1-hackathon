@@ -60,3 +60,11 @@ private let surfaces = [RacingPalette.background, RacingPalette.surface, RacingP
     #expect(RacingPalette.trackEdge.relativeLuminance < RacingPalette.surface.relativeLuminance)
     #expect(RacingPalette.trackSurface.relativeLuminance > RacingPalette.trackEdge.relativeLuminance)
 }
+
+@Test func trackMapMarkingsAreVisibleWhereTheyAreDrawn() {
+    // Marker numbers sit on team colours of any lightness; the darkest team colour is the hardest case.
+    let darkTeam = SRGBColor(hex: 0x1E41FF)
+    #expect(RacingPalette.markerInk.contrastRatio(with: darkTeam) >= 4.5)
+    // The chequered tick's two squares must read against each other.
+    #expect(RacingPalette.chequeredLight.contrastRatio(with: RacingPalette.chequeredDark) >= 7)
+}

@@ -13,12 +13,18 @@ public enum RaceControlKind: Sendable, Equatable {
 
     public init(flag: String?, message: String) {
         let text = message.uppercased()
-        if text.contains("VIRTUAL SAFETY CAR") || text.contains("VSC") {
+        let explicit = flag?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        // A critical flag is never downgraded to a caution because its message mentions the safety car.
+        if explicit == "RED" {
+            self = .red
+        } else if explicit == "BLACK" {
+            self = .black
+        } else if text.contains("VIRTUAL SAFETY CAR") || text.contains("VSC") {
             self = .virtualSafetyCar
         } else if text.contains("SAFETY CAR") {
             self = .safetyCar
         } else {
-            switch flag?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+            switch explicit {
             case "GREEN": self = .green
             case "CLEAR": self = .clear
             case "YELLOW": self = .yellow
@@ -65,6 +71,12 @@ public enum RaceControlKind: Sendable, Equatable {
 extension RaceMessage {
     public var kind: RaceControlKind { RaceControlKind(flag: flag, message: message) }
     public var timestamp: Date? { TrackLayout.parseDate(date) }
+
+    /// What VoiceOver reads for the row: the flag, the time when the message has one, then the text.
+    public func accessibilitySummary(timeText: String?) -> String {
+        guard let timeText, !timeText.isEmpty else { return "\(kind.label). \(message)" }
+        return "\(kind.label), \(timeText). \(message)"
+    }
 }
 
 /// One answer to "can I trust what's on screen?": demo, live, stale or offline.
@@ -81,6 +93,10 @@ public struct FeedStatus: Equatable, Sendable {
 
     public static let staleAfter: TimeInterval = 30
 
+    /// What the backend reports while it is still starting up. These are not failures, so they show
+    /// CONNECTING; any other non-"connected" value (reconnecting, snapshot unavailable, ...) is stale.
+    public static let startingUpstreamStates: Set<String> = ["connecting", "subscribing"]
+
     public static func resolve(snapshot: TimingSnapshot?, connected: Bool, hasError: Bool, now: Date) -> Self {
         guard let snapshot else {
             return Self(kind: hasError ? .offline : .connecting, isDemo: false, updatedAt: nil, age: nil)
@@ -91,6 +107,9 @@ public struct FeedStatus: Equatable, Sendable {
         if !connected { return Self(kind: .offline, isDemo: isDemo, updatedAt: updated, age: age) }
         // Demo timing is simulated; it never goes stale and says so instead.
         if isDemo { return Self(kind: .live, isDemo: true, updatedAt: updated, age: age) }
+        if startingUpstreamStates.contains(snapshot.upstream) {
+            return Self(kind: .connecting, isDemo: false, updatedAt: updated, age: age)
+        }
         if snapshot.upstream != "connected" { return Self(kind: .stale, isDemo: false, updatedAt: updated, age: age) }
         guard let age else { return Self(kind: .stale, isDemo: false, updatedAt: nil, age: nil) }
         return Self(kind: age > staleAfter ? .stale : .live, isDemo: false, updatedAt: updated, age: age)

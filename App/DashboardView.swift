@@ -135,6 +135,7 @@ struct DashboardView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: RacingStyle.Radius.row))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(kind.label). \(message.message)")
+        .accessibilityLabel(message.accessibilitySummary(
+            timeText: message.timestamp?.formatted(date: .omitted, time: .standard)))
     }
 }

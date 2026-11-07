@@ -53,6 +53,11 @@ public enum RacingPalette {
     public static let statusStale = SRGBColor(hex: 0xFF8A3D)
     public static let statusOffline = SRGBColor(hex: 0x8E8EA0)
     public static let onStatus = SRGBColor(hex: 0x0E0E13)
+    // Driver markers on the track map: number and ring drawn over any team colour.
+    public static let markerInk = SRGBColor(hex: 0xFFFFFF)
+    // The chequered start/finish tick across the track.
+    public static let chequeredLight = SRGBColor(hex: 0xFFFFFF)
+    public static let chequeredDark = SRGBColor(hex: 0x000000)
     // Track map: a dark kerb outline around a lighter racing surface.
     public static let trackEdge = SRGBColor(hex: 0x08080B)
     public static let trackSurface = SRGBColor(hex: 0x74748A)

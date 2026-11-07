@@ -68,7 +68,11 @@ private func gapDriver(_ position: Int, gap: String?) -> TimingDriver {
 @Test func gapColumnNeedsAtLeastTwoDriversWithAGap() {
     let none = (1...5).map { gapDriver($0, gap: nil) }
     #expect(!none.hasUsableGaps)
-    #expect(![gapDriver(1, gap: nil), gapDriver(2, gap: "+1.2")].hasUsableGaps)
+    // One trailing driver with a gap is enough on a two-driver board: the leader has none to show.
+    #expect([gapDriver(1, gap: nil), gapDriver(2, gap: "+1.2")].hasUsableGaps)
+    #expect(![gapDriver(1, gap: nil), gapDriver(2, gap: nil)].hasUsableGaps)
+    // A single stray gap among many drivers is still noise.
+    #expect(!([gapDriver(1, gap: nil), gapDriver(2, gap: "+1.2")] + (3...20).map { gapDriver($0, gap: nil) }).hasUsableGaps)
     #expect(![gapDriver(1, gap: nil), gapDriver(2, gap: "+1.2"), gapDriver(3, gap: "  ")].hasUsableGaps)
     #expect([gapDriver(1, gap: nil), gapDriver(2, gap: "+1.2"), gapDriver(3, gap: "+3.4")].hasUsableGaps)
     #expect(![TimingDriver]().hasUsableGaps)
