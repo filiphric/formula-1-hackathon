@@ -60,7 +60,7 @@ public struct TrackPoint: Codable, Sendable, Equatable {
     }
 }
 
-public struct DriverLocation: Codable, Sendable {
+public struct DriverLocation: Codable, Sendable, Equatable {
     public let x: Double
     public let y: Double
     public let date: String

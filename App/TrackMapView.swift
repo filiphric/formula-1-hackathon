@@ -7,6 +7,7 @@ struct TrackMapView: View {
     /// (the circuit keeps its own proportions, centred). Stacked, the map takes the circuit's own shape.
     var fillsHeight = false
     @State private var selectedDriver: Int?
+    @State private var animationActive = false
     @State private var motions: [Int: DriverMotion] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .caption) private var markerSize = 28
@@ -17,7 +18,7 @@ struct TrackMapView: View {
     private let surfaceWidth: CGFloat = 12
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: reduceMotion || !connected || snapshot.allPositionsStale(at: Date()) ? 1 : 1.0 / 60)) { context in
+        TimelineView(.animation(minimumInterval: reduceMotion || !connected || !animationActive ? 1 : 1.0 / 60)) { context in
             let notLive = snapshot.allPositionsStale(at: context.date)
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 ViewThatFits(in: .horizontal) {
@@ -56,8 +57,12 @@ struct TrackMapView: View {
             .frame(maxHeight: fillsHeight ? .infinity : nil, alignment: .top)
             .racingCard()
         }
-        .onAppear { receivePositions() }
-        .onChange(of: snapshot.drivers.map { $0.location?.date }) { receivePositions() }
+        .task(id: snapshot.drivers.map(\.location)) {
+            receivePositions()
+            animationActive = connected && !reduceMotion
+            do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            animationActive = false
+        }
         .onChange(of: connected) { motions = [:]; receivePositions() }
         .onChange(of: snapshot.session?.start) { selectedDriver = nil; motions = [:]; receivePositions() }
             }

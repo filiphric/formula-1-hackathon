@@ -99,3 +99,17 @@ private func trackSnapshot(mode: String = "live", upstream: String = "connected"
     #expect(decoded.timestamp == TrackLayout.parseDate("2026-11-07T12:00:01.250Z"))
     #expect(decoded.timestamp == location.timestamp)
 }
+
+@Test func correctionsReplaceEqualTimestampAndStaleMotionResets() throws {
+    let time = try #require(TrackLayout.parseDate("2026-11-07T12:00:00Z"))
+    var motion = DriverMotion()
+    motion.receive(DriverLocation(x: 0, y: 1, date: "2026-11-07T12:00:00Z"), at: time)
+    motion.receive(DriverLocation(x: 50, y: 1, date: "2026-11-07T12:00:00Z"), at: time)
+    #expect(motion.point(at: time)?.x == 50)
+    // Old target is 11 seconds old; new sample is 9 seconds old and still fresh.
+    // Their two-second event gap must not animate from an already stale position.
+    motion.receive(DriverLocation(x: 100, y: 1, date: "2026-11-07T12:00:02Z"), at: time.addingTimeInterval(11))
+    #expect(motion.point(at: time.addingTimeInterval(11))?.x == 100)
+    motion.receive(DriverLocation(x: 500, y: 1, date: "2026-11-07T12:00:03Z"), at: time.addingTimeInterval(11), animated: false)
+    #expect(motion.point(at: time.addingTimeInterval(11))?.x == 500)
+}
