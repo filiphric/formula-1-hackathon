@@ -28,8 +28,11 @@ private struct RootView: View {
                 Image(systemName: "flag.checkered").font(.title2.bold()).foregroundStyle(RacingStyle.red)
                 Text("FORMULA LIVE").font(.system(.headline, design: .rounded, weight: .black)).italic()
                 Spacer()
-                Text("RACE WEEKEND COMPANION").font(.caption2.bold()).tracking(1.5)
-                    .foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+                ViewThatFits(in: .horizontal) {
+                    Text("RACE WEEKEND COMPANION").font(.caption2.bold()).tracking(1.5)
+                        .foregroundStyle(.secondary).fixedSize()
+                    Color.clear.frame(width: 0, height: 0)
+                }
             }
             .padding(.horizontal, 24).padding(.vertical, 16)
             .background(RacingStyle.background.overlay { RacingStripes() })

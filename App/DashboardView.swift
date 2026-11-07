@@ -105,7 +105,7 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 12)
-                .fill(LinearGradient(colors: [Color(red: 0.55, green: 0.02, blue: 0.02), RacingStyle.surface], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [RacingStyle.headerRed, RacingStyle.surface], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .overlay { RacingStripes().clipShape(RoundedRectangle(cornerRadius: 12)) }
         }
         .overlay(alignment: .leading) { UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 12).fill(accent).frame(width: 4) }
@@ -114,36 +114,38 @@ struct DashboardView: View {
     private func timingBoard(_ snapshot: TimingSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             RacingSectionTitle(title: "Leaderboard", subtitle: "Position / driver / gap / last lap")
-            HStack {
-                Text("POS").frame(width: 30)
-                Text("DRIVER")
-                Spacer()
-                Text("GAP / LAP")
-                Text("TYRE").padding(.leading, 6)
-            }.font(.system(.caption2, weight: .bold)).foregroundStyle(.secondary)
             if snapshot.drivers.isEmpty {
                 Text("Waiting for driver data…").foregroundStyle(.secondary)
             }
-            ForEach(snapshot.drivers) { driver in
-                HStack(spacing: 12) {
-                    Text(driver.position.map(String.init) ?? "—")
-                        .font(.title3.bold().monospacedDigit()).frame(width: 30)
-                    RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
-                        .frame(width: 4, height: 34)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(driver.acronym).font(.system(.headline, design: .rounded, weight: .heavy))
-                        Text(driver.team).font(.caption).foregroundStyle(.secondary)
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
+                GridRow {
+                    Text("POS")
+                    Color.clear.frame(width: 4, height: 1).accessibilityHidden(true)
+                    Text("DRIVER")
+                    Text("GAP / LAP").gridColumnAlignment(.trailing)
+                    Text("TYRE").gridColumnAlignment(.center)
+                }.font(.system(.caption2, weight: .bold)).foregroundStyle(.secondary)
+                ForEach(snapshot.drivers) { driver in
+                    GridRow {
+                        Text(driver.position.map(String.init) ?? "—")
+                            .font(.title3.bold().monospacedDigit())
+                        RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
+                            .frame(width: 4, height: 34)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(driver.acronym).font(.system(.headline, design: .rounded, weight: .heavy))
+                            Text(driver.team).font(.caption).foregroundStyle(.secondary)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text(driver.gap ?? (driver.position == 1 ? "LEADER" : "—"))
+                                .font(.subheadline.monospacedDigit())
+                            Text(driver.formattedLap).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                        TyreBadge(compound: TyreCompound(driver.compound))
+                    }.accessibilityElement(children: .combine)
+                    if driver.id != snapshot.drivers.last?.id {
+                        Divider().opacity(0.4).gridCellUnsizedAxes(.horizontal)
                     }
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text(driver.gap ?? (driver.position == 1 ? "LEADER" : "—"))
-                            .font(.subheadline.monospacedDigit())
-                        Text(driver.formattedLap).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    TyreBadge(compound: TyreCompound(driver.compound))
                 }
-                .accessibilityElement(children: .combine)
-                if driver.id != snapshot.drivers.last?.id { Divider().opacity(0.4) }
             }
         }.racingCard()
     }

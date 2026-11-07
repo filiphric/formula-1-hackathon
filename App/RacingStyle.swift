@@ -3,6 +3,7 @@ import SwiftUI
 /// Shared visual language for the race centre and calendar.
 enum RacingStyle {
     static let red = Color(red: 0.91, green: 0.035, blue: 0.02)
+    static let headerRed = Color(red: 0.55, green: 0.02, blue: 0.02)
     static let background = Color(red: 0.065, green: 0.065, blue: 0.09)
     static let surface = Color(red: 0.10, green: 0.10, blue: 0.135)
     static let border = Color.white.opacity(0.14)
@@ -54,6 +55,7 @@ extension View {
 
 struct TyreBadge: View {
     let compound: TyreCompound
+    @ScaledMetric(relativeTo: .caption) private var diameter = 26
 
     private var color: Color {
         switch compound {
@@ -70,7 +72,7 @@ struct TyreBadge: View {
         Text(compound.symbol)
             .font(.system(.caption, design: .rounded, weight: .heavy))
             .foregroundStyle(color)
-            .frame(width: 26, height: 26)
+            .frame(width: diameter, height: diameter)
             .background(color.opacity(0.08), in: Circle())
             .overlay(Circle().strokeBorder(color, lineWidth: 2))
             .accessibilityLabel(compound.label)
