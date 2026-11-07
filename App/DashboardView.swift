@@ -72,8 +72,6 @@ struct DashboardView: View {
         }
         .frame(maxHeight: fillsHeight ? .infinity : nil, alignment: .top)
         .racingCard()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Leaderboard")
     }
 
     private func raceControl(_ snapshot: TimingSnapshot) -> some View {
