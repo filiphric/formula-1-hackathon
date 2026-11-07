@@ -79,12 +79,28 @@ private struct AppBar: View {
     let showSettings: () -> Void
 
     var body: some View {
+        // Drop the wordmark before squeezing the pill. The bar's own text stops at xxxLarge:
+        // it is chrome, and the content below it scales all the way up.
+        ViewThatFits(in: .horizontal) {
+            bar(showName: true)
+            bar(showName: false)
+        }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .padding(.horizontal, RacingStyle.Space.l)
+        .frame(minHeight: 48)
+        .background(RacingStyle.background, ignoresSafeAreaEdges: .top)
+        .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
+    }
+
+    private func bar(showName: Bool) -> some View {
         HStack(spacing: RacingStyle.Space.m) {
             Image(systemName: "flag.checkered").font(RacingStyle.Typography.title).foregroundStyle(RacingStyle.red)
                 .accessibilityHidden(true)
-            Text("FORMULA LIVE").font(RacingStyle.Typography.headline).italic()
-                .lineLimit(1).minimumScaleFactor(0.8)
-                .accessibilityAddTraits(.isHeader)
+            if showName {
+                Text("FORMULA LIVE").font(RacingStyle.Typography.headline).italic()
+                    .lineLimit(1).fixedSize()
+                    .accessibilityAddTraits(.isHeader)
+            }
             #if os(macOS)
             Picker("Section", selection: $tab) {
                 ForEach(AppTab.allCases) { Text($0.rawValue).tag($0) }
@@ -97,10 +113,6 @@ private struct AppBar: View {
             }.buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
                 .accessibilityLabel("Connection settings")
         }
-        .padding(.horizontal, RacingStyle.Space.l)
-        .frame(minHeight: 48)
-        .background(RacingStyle.background, ignoresSafeAreaEdges: .top)
-        .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
     }
 }
 

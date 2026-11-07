@@ -28,6 +28,7 @@ struct TimingTower: View {
                 Text("Tyre").gridColumnAlignment(.center)
             }
             .racingLabel().foregroundStyle(RacingStyle.textSecondary)
+            .lineLimit(1).fixedSize()
             .frame(minHeight: 28)
             .accessibilityHidden(true)
             Divider().overlay(RacingStyle.raised).gridCellUnsizedAxes(.horizontal)
@@ -44,10 +45,12 @@ struct TimingTower: View {
         GridRow {
             Text(driver.position.map(String.init) ?? "—")
                 .font(RacingStyle.Typography.figure)
+                .lineLimit(1).fixedSize()
                 .frame(minHeight: rowHeight)
             RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
                 .frame(width: 4, height: rowHeight * 0.6)
             Text(driver.acronym).font(RacingStyle.Typography.code)
+                .lineLimit(1).fixedSize()
                 .frame(maxWidth: layout.shows(.team) ? nil : .infinity, alignment: .leading)
             if layout.shows(.team) {
                 Text(driver.team).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
@@ -56,6 +59,7 @@ struct TimingTower: View {
             gap(driver)
             if layout.shows(.lastLap) {
                 Text(driver.formattedLap).font(RacingStyle.Typography.data).foregroundStyle(RacingStyle.textSecondary)
+                    .lineLimit(1).fixedSize()
             }
             TyreBadge(compound: TyreCompound(driver.compound))
         }
@@ -67,11 +71,12 @@ struct TimingTower: View {
         if driver.isLeader {
             // A filled brand-red chip, so the leader is a shape and not only a word.
             Text("LEADER").font(RacingStyle.Typography.label).tracking(1)
+                .lineLimit(1).fixedSize()
                 .foregroundStyle(RacingStyle.onRed)
                 .padding(.horizontal, RacingStyle.Space.s).padding(.vertical, RacingStyle.Space.xs)
                 .background(RacingStyle.red, in: Capsule())
         } else {
-            Text(driver.gapText).font(RacingStyle.Typography.data)
+            Text(driver.gapText).font(RacingStyle.Typography.data).lineLimit(1).fixedSize()
         }
     }
 }

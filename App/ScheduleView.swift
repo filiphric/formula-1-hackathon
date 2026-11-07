@@ -13,7 +13,7 @@ struct ScheduleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 HStack(spacing: RacingStyle.Space.s) {
-                    Text("Calendar").font(RacingStyle.Typography.display)
+                    Text("Calendar").font(RacingStyle.Typography.display).racingHeading()
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
                     Picker("Season", selection: $season) {
@@ -161,7 +161,7 @@ private struct WeekendCard: View {
                 Spacer()
                 chevron
             }
-            Text(race.name).font(RacingStyle.Typography.display).multilineTextAlignment(.leading)
+            Text(race.name).font(RacingStyle.Typography.display).racingHeading().multilineTextAlignment(.leading)
             Text(race.circuit).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
             HStack(alignment: .lastTextBaseline) {
                 if let dateRange {

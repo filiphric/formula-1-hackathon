@@ -45,11 +45,11 @@ struct DashboardView: View {
     private var hero: some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
             Text(store.snapshot?.session?.circuit ?? "Ready for lights out")
-                .font(RacingStyle.Typography.display)
+                .font(RacingStyle.Typography.display).racingHeading()
                 .accessibilityAddTraits(.isHeader)
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: RacingStyle.Space.s) { sessionName; feedLine }
-                VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { sessionName; feedLine }
+                HStack(spacing: RacingStyle.Space.s) { sessionName; feedLine(separator: "· ") }
+                VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { sessionName; feedLine(separator: "") }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -61,15 +61,15 @@ struct DashboardView: View {
             .font(RacingStyle.Typography.headline).foregroundStyle(RacingStyle.textSecondary)
     }
 
-    @ViewBuilder private var feedLine: some View {
+    @ViewBuilder private func feedLine(separator: String) -> some View {
         if feed.isDemo {
-            Text("· Sample timing, not live").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusDemo))
+            Text("\(separator)Sample timing, not live").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusDemo))
         } else if feed.kind == .stale, let age = feed.age {
-            Text("· No new timing for \(Int(age)) seconds").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+            Text("\(separator)No new timing for \(Int(age)) seconds").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
         } else if feed.kind == .offline {
-            Text("· Showing last timing received. Reconnecting…").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+            Text("\(separator)Showing last timing received. Reconnecting…").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
         } else if let date = feed.updatedAt {
-            Text("· Updated \(date.formatted(date: .omitted, time: .standard))").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+            Text("\(separator)Updated \(date.formatted(date: .omitted, time: .standard))").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         }
     }
 

@@ -88,6 +88,7 @@ struct FeedStatusPill: View {
             .foregroundStyle(Color(RacingPalette.onStatus))
             .padding(.horizontal, RacingStyle.Space.m).padding(.vertical, RacingStyle.Space.xs)
             .background(status.fill, in: Capsule())
+            .lineLimit(1).fixedSize()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Feed status")
             .accessibilityValue(status.spokenDescription)
@@ -124,7 +125,7 @@ struct RacingSectionTitle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
-            Text(title).font(RacingStyle.Typography.title)
+            Text(title).font(RacingStyle.Typography.title).racingHeading()
             if let subtitle {
                 Text(subtitle).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
             }
@@ -157,6 +158,8 @@ extension View {
     func racingCard(_ density: RacingCard.Density = .regular) -> some View { modifier(RacingCard(density: density)) }
     func racingPagePadding() -> some View { modifier(RacingPagePadding()) }
     /// Short uppercase labels only: column headers, chips, eyebrows.
+    /// Headings stop growing at accessibility2 so a title can never push the data off the screen.
+    func racingHeading() -> some View { dynamicTypeSize(...DynamicTypeSize.accessibility2) }
     func racingLabel() -> some View { font(RacingStyle.Typography.label).textCase(.uppercase).tracking(1) }
 }
 
