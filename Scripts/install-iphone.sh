@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
-# Build FormulaLive for a physical iPhone, install it, and launch it.
-#
-#   Scripts/install-iphone.sh [--device NAME] [--endpoint ws://HOST:8787/live]
-#
-# Defaults to the device named "Ajfonis". Signing comes from Config.local.xcconfig
-# (DEVELOPMENT_TEAM; see Config.local.example.xcconfig). The app is replaced in place,
-# never uninstalled, so its saved settings survive.
-#
-# --endpoint is passed for this launch only (`-serverEndpoint`). To keep it, type it into
-# the app's Connection settings once. localhost on the phone is the phone itself, so the
-# endpoint must be your Mac's LAN address and the backend must listen on it (see README).
+# Build FormulaLive for a physical iPhone, install it in place, and launch it.
+#   Scripts/install-iphone.sh [--device NAME] [--endpoint ws://MAC-LAN-IP:8787/live]
+# Signing and endpoint details: README "Physical iPhone". Device defaults to "Ajfonis".
 set -euo pipefail
 
 device_name="Ajfonis"
@@ -40,8 +32,10 @@ udid="$(python3 -I - "$scratch/devices.json" "$device_name" <<'PY'
 import json, sys
 path, name = sys.argv[1:3]
 for d in json.load(open(path))["result"]["devices"]:
-    if d["deviceProperties"]["name"] == name and d["hardwareProperties"]["reality"] == "physical":
-        print(d["hardwareProperties"]["udid"])
+    hardware = d.get("hardwareProperties", {})
+    # Older devicectl omits "reality"; only skip a device that says it is simulated.
+    if d.get("deviceProperties", {}).get("name") == name and hardware.get("reality", "physical") == "physical" and hardware.get("udid"):
+        print(hardware["udid"])
         break
 PY
 )"
@@ -59,8 +53,8 @@ app="$derived/Build/Products/Debug-iphoneos/FormulaLive.app"
 
 xcrun devicectl device install app --device "$udid" "$app"
 
-# Arguments after `--` go to the app; without it devicectl parses -serverEndpoint as its own -t.
+# Arguments after `--` go to the app; without it devicectl parses -seedServerEndpoint as its own -t.
 launch_args=()
-[[ -n "$endpoint" ]] && launch_args=(-- -serverEndpoint "$endpoint")
+[[ -n "$endpoint" ]] && launch_args=(-- -seedServerEndpoint "$endpoint")
 xcrun devicectl device process launch --device "$udid" --terminate-existing "$bundle_id" ${launch_args[@]+"${launch_args[@]}"}
 echo "Installed and launched $bundle_id on $device_name."

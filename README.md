@@ -146,7 +146,8 @@ Scripts/install-iphone.sh --device "My iPhone" --endpoint ws://YOUR-MAC-LAN-IP:8
 ```
 
 The script finds the device by name (default `Ajfonis`), replaces the installed app in place
-and passes `--endpoint` for that launch only; enter it once in Connection settings to keep it.
+and `--endpoint` saves the server address in the app (once, via `-seedServerEndpoint`), so later
+launches from the home screen keep it and Connection settings can still change it.
 
 The development server has no client authentication and defaults to loopback.
 Binding to the LAN exposes its timing stream to that network. Before internet
