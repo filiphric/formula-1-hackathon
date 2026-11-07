@@ -8,8 +8,8 @@ struct TrackMapView: View {
     @ScaledMetric(relativeTo: .caption) private var labelWidth = 48
     @ScaledMetric(relativeTo: .caption) private var labelHeight = 22
 
-    private let kerbWidth: CGFloat = 18
-    private let surfaceWidth: CGFloat = 10
+    private let kerbWidth: CGFloat = 22
+    private let surfaceWidth: CGFloat = 12
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -163,9 +163,9 @@ struct TrackMapView: View {
     }
 }
 
-/// Eight-by-sixteen point chequered flag mark; the long side runs across the track once rotated.
+/// Ten-by-twenty point chequered flag mark; the long side runs across the track once rotated.
 private struct ChequeredTick: View {
-    private let square: CGFloat = 4
+    private let square: CGFloat = 5
 
     var body: some View {
         Grid(horizontalSpacing: 0, verticalSpacing: 0) {

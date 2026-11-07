@@ -131,11 +131,9 @@ private struct WeekendCard: View {
         }
         .racingCard(emphasis == .next ? .regular : .compact)
         .overlay(alignment: .top) {
-            if emphasis == .next {
-                UnevenRoundedRectangle(topLeadingRadius: RacingStyle.Radius.card, topTrailingRadius: RacingStyle.Radius.card)
-                    .fill(RacingStyle.red).frame(height: 3)
-            }
+            if emphasis == .next { RacingStyle.red.frame(height: 3) }
         }
+        .clipShape(RoundedRectangle(cornerRadius: RacingStyle.Radius.card))
     }
 
     private var spokenSummary: String {
