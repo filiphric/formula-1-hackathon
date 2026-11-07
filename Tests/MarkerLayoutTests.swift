@@ -106,3 +106,22 @@ private func easedCar() throws -> (drivers: [TimingDriver], motions: [Int: Drive
     #expect(MarkerLayout.driver(at: TrackPoint(x: 105, y: 100), in: spots, radius: 22) == 4)
     #expect(MarkerLayout.driver(at: TrackPoint(x: 115, y: 100), in: spots, radius: 22) == 16)
 }
+
+// Motion lasts at most one second after a position arrives. Per-frame drawing must cover all of it, and a
+// timer that was started for an older position must not switch drawing off because a newer one has arrived.
+@Test func frameDrawingCoversTheWholeEasingAndStopsSoonAfter() {
+    let received = epoch
+    #expect(MotionActivity.isActive(lastReceived: received, now: received))
+    #expect(MotionActivity.isActive(lastReceived: received, now: received.addingTimeInterval(1)))
+    // One-second feeds can be a few tens of milliseconds late: still no idle gap before the next position.
+    #expect(MotionActivity.isActive(lastReceived: received, now: received.addingTimeInterval(1.1)))
+    #expect(!MotionActivity.isActive(lastReceived: received, now: received.addingTimeInterval(1.5)))
+    #expect(!MotionActivity.isActive(lastReceived: .distantPast, now: received))
+}
+
+@Test func anOlderTimerWakingJustAfterANewPositionDoesNotIdleTheMap() {
+    // Position A arrived at t=0 and started a one-second-and-a-bit timer. Position B arrives at t=1.081 and
+    // A's timer fires at t=1.082: the newest position is one millisecond old, so the map must keep animating.
+    let newest = epoch.addingTimeInterval(1.081)
+    #expect(MotionActivity.isActive(lastReceived: newest, now: epoch.addingTimeInterval(1.082)))
+}
