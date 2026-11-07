@@ -93,7 +93,9 @@ struct TrackMapView: View {
                     }
                     selectedLabel(spots, size: geometry.size, now: now)
                     if let notLive {
+                        // Capped like other chrome: a caption that grows with the text would cover the whole map.
                         Text(notLive).font(RacingStyle.Typography.bodyStrong)
+                            .dynamicTypeSize(...DynamicTypeSize.xLarge)
                             .foregroundStyle(RacingStyle.textPrimary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, RacingStyle.Space.l).padding(.vertical, RacingStyle.Space.s)

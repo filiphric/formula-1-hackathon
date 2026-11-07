@@ -8,6 +8,7 @@ struct ScheduleView: View {
     /// The season the filter was last defaulted for, so a refresh keeps the filter the user picked.
     @State private var defaultedFor = ""
     @State private var refresh = 0
+    @Environment(\.dynamicTypeSize) private var typeSize
     private let currentYear = Calendar.current.component(.year, from: .now)
     private var timeZoneName: String { TimeZone.autoupdatingCurrent.identifier }
 
@@ -18,31 +19,33 @@ struct ScheduleView: View {
     }
 
     private func page(_ proxy: ScrollViewProxy) -> some View {
-        VStack(spacing: 0) {
-            // The controls stay put while the list scrolls, so jumping to the next race never hides them.
-            header
-                .racingPagePadding([.horizontal, .top])
-                .padding(.bottom, RacingStyle.Space.s)
-                .frame(maxWidth: 900)
-                .frame(maxWidth: .infinity)
-            ScrollView {
-                VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-                    if store.loading { ProgressView("Loading season…").frame(maxWidth: .infinity).padding(RacingStyle.Space.xl) }
-                    if let error = store.error {
-                        ContentUnavailableView {
-                            Label("Schedule unavailable", systemImage: "wifi.exclamationmark")
-                        } description: { Text(error) } actions: {
-                            Button("Try again") { refresh += 1 }
-                        }
+        Group {
+            if typeSize.isAccessibilitySize {
+                // At accessibility sizes the header alone would fill the screen, so it scrolls with the list.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+                        header
+                        listContent(proxy)
                     }
-                    if let schedule = store.schedule {
-                        calendar(schedule, proxy: proxy)
+                    .racingPagePadding()
+                    .frame(maxWidth: 900)
+                    .frame(maxWidth: .infinity)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    // The controls stay put while the list scrolls, so jumping to the next race never hides them.
+                    header
+                        .racingPagePadding([.horizontal, .top])
+                        .padding(.bottom, RacingStyle.Space.s)
+                        .frame(maxWidth: 900)
+                        .frame(maxWidth: .infinity)
+                    ScrollView {
+                        listContent(proxy)
+                            .racingPagePadding([.horizontal, .bottom])
+                            .frame(maxWidth: 900)
+                            .frame(maxWidth: .infinity)
                     }
                 }
-                .id(Self.topID)
-                .racingPagePadding([.horizontal, .bottom])
-                .frame(maxWidth: 900)
-                .frame(maxWidth: .infinity)
             }
         }
         .background(RacingStyle.background)
@@ -59,27 +62,54 @@ struct ScheduleView: View {
 
     private static let topID = "calendar-top"
 
+    private func listContent(_ proxy: ScrollViewProxy) -> some View {
+        VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+            if store.loading { ProgressView("Loading season…").frame(maxWidth: .infinity).padding(RacingStyle.Space.xl) }
+            if let error = store.error {
+                ContentUnavailableView {
+                    Label("Schedule unavailable", systemImage: "wifi.exclamationmark")
+                } description: { Text(error) } actions: {
+                    Button("Try again") { refresh += 1 }
+                }
+            }
+            if let schedule = store.schedule {
+                calendar(schedule, proxy: proxy)
+            }
+        }
+        .id(Self.topID)
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-            HStack(spacing: RacingStyle.Space.s) {
-                Text("Calendar").font(RacingStyle.Typography.display).racingHeading()
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Picker("Season", selection: $season) {
-                    ForEach(Array((2023...max(2023, currentYear + 1)).reversed()), id: \.self) { year in
-                        Text(String(year)).tag(year)
-                    }
-                }.labelsHidden().fixedSize()
-                Button { refresh += 1 } label: {
-                    Image(systemName: "arrow.clockwise").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
-                .disabled(store.loading).accessibilityLabel("Refresh calendar")
+            // The title never shares a line with controls that would squeeze it to "Ca…".
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: RacingStyle.Space.s) { title.fixedSize(horizontal: true, vertical: false); Spacer(); seasonControls }
+                VStack(alignment: .leading, spacing: RacingStyle.Space.s) { title; seasonControls }
             }
             Picker("Show races", selection: $filter) {
                 ForEach(ScheduleFilter.allCases) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
             caption
+        }
+    }
+
+    private var title: some View {
+        Text("Calendar").font(RacingStyle.Typography.display).racingHeading().lineLimit(1)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var seasonControls: some View {
+        HStack(spacing: RacingStyle.Space.s) {
+            Picker("Season", selection: $season) {
+                ForEach(Array((2023...max(2023, currentYear + 1)).reversed()), id: \.self) { year in
+                    Text(String(year)).tag(year)
+                }
+            }.labelsHidden().fixedSize()
+            Button { refresh += 1 } label: {
+                Image(systemName: "arrow.clockwise").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
+            .disabled(store.loading).accessibilityLabel("Refresh calendar")
         }
     }
 
@@ -121,7 +151,8 @@ struct ScheduleView: View {
             .task(id: "\(schedule.season)|\(schedule.fetchedAt)|\(filter.rawValue)") {
                 try? await Task.sleep(for: .milliseconds(120))
                 switch schedule.calendarFocus(for: filter, at: Date()) {
-                case .nextRace(let round), .seasonComplete(let round): proxy.scrollTo(round, anchor: .top)
+                case .nextRace(let round), .seasonComplete(let round):
+                    proxy.scrollTo(round, anchor: .top)
                 case .top: proxy.scrollTo(Self.topID, anchor: .top)
                 }
             }
@@ -154,6 +185,7 @@ private struct WeekendCard: View {
     let emphasis: WeekendEmphasis
     let now: Date
     @State private var expanded: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     init(race: RaceWeekend, emphasis: WeekendEmphasis, now: Date) {
         self.race = race
@@ -236,22 +268,39 @@ private struct WeekendCard: View {
         }
     }
 
-    /// Everything that is not the next race: one compact row.
-    private var row: some View {
-        HStack(spacing: RacingStyle.Space.m) {
-            Text(String(format: "%02d", race.round))
-                .font(isPast ? RacingStyle.Typography.figureQuiet : RacingStyle.Typography.figure)
-                .foregroundStyle(isPast ? RacingStyle.textTertiary : primary)
+    /// Everything that is not the next race: one compact row. At accessibility sizes the round number
+    /// moves above the title so the title keeps the full width instead of breaking mid-word.
+    @ViewBuilder private var row: some View {
+        if typeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
-                Text(race.name)
-                    .font(isPast ? RacingStyle.Typography.headlineQuiet : RacingStyle.Typography.headline)
-                    .foregroundStyle(primary).multilineTextAlignment(.leading)
+                HStack { roundNumber; Spacer(minLength: RacingStyle.Space.s); chevron }
+                rowTitle
                 meta
             }
-            Spacer(minLength: RacingStyle.Space.s)
-            chevron
+        } else {
+            HStack(spacing: RacingStyle.Space.m) {
+                roundNumber
+                VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
+                    rowTitle
+                    meta
+                }
+                Spacer(minLength: RacingStyle.Space.s)
+                chevron
+            }
+            .frame(minHeight: 44)
         }
-        .frame(minHeight: 44)
+    }
+
+    private var roundNumber: some View {
+        Text(String(format: "%02d", race.round))
+            .font(isPast ? RacingStyle.Typography.figureQuiet : RacingStyle.Typography.figure)
+            .foregroundStyle(isPast ? RacingStyle.textTertiary : primary)
+    }
+
+    private var rowTitle: some View {
+        Text(race.name)
+            .font(isPast ? RacingStyle.Typography.headlineQuiet : RacingStyle.Typography.headline)
+            .foregroundStyle(primary).multilineTextAlignment(.leading)
     }
 
     /// Country and dates on one line; at very large text the dates drop to their own line, still unbroken.

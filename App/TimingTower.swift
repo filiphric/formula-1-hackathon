@@ -8,8 +8,42 @@ struct TimingTower: View {
     /// False in sessions that report no gaps (practice, qualifying): the GAP column would be all dashes.
     let showsGap: Bool
     @ScaledMetric(relativeTo: .body) private var rowHeight = 44
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        if typeSize.isAccessibilitySize { stackedTower } else { gridTower }
+    }
+
+    /// At accessibility text sizes no column set fits a phone, so each driver becomes two lines:
+    /// position, code and tyre; then gap and last lap. Nothing scrolls sideways.
+    private var stackedTower: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(drivers) { driver in
+                VStack(alignment: .leading, spacing: RacingStyle.Space.s) {
+                    HStack(spacing: RacingStyle.Space.m) {
+                        Text(driver.position.map(String.init) ?? "—").font(RacingStyle.Typography.figure).lineLimit(1)
+                        RoundedRectangle(cornerRadius: RacingStyle.Radius.tag).fill(Color.team(driver.color))
+                            .frame(width: 4, height: rowHeight * 0.6)
+                        Text(driver.acronym).font(RacingStyle.Typography.code).lineLimit(1)
+                        Spacer(minLength: RacingStyle.Space.s)
+                        TyreBadge(compound: TyreCompound(driver.compound))
+                    }
+                    HStack(spacing: RacingStyle.Space.m) {
+                        if showsGap { gap(driver) }
+                        Spacer(minLength: RacingStyle.Space.s)
+                        Text(driver.formattedLap).font(RacingStyle.Typography.data).foregroundStyle(RacingStyle.textSecondary).lineLimit(1)
+                    }
+                }
+                .padding(.vertical, RacingStyle.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(driver.accessibilitySummary(showingGap: showsGap))
+                if driver.id != drivers.last?.id { Divider().overlay(RacingStyle.raised) }
+            }
+        }
+    }
+
+    private var gridTower: some View {
         ViewThatFits(in: .horizontal) {
             tower(.wide)
             tower(.standard)
