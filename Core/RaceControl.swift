@@ -96,6 +96,9 @@ public struct FeedStatus: Equatable, Sendable {
         return Self(kind: age > staleAfter ? .stale : .live, isDemo: false, updatedAt: updated, age: age)
     }
 
+    /// How old the timing is in words ("45 s", "38 min", "1 h 12 min"); nil when the age is unknown.
+    public var ageText: String? { age.map { DurationText.compact(seconds: $0) } }
+
     /// Short uppercase label. Demo data is never labelled plain LIVE.
     public var label: String {
         let base: String
@@ -111,7 +114,7 @@ public struct FeedStatus: Equatable, Sendable {
 
     /// Full sentence for VoiceOver; says demo data is simulated, never "live".
     public var spokenDescription: String {
-        let ageText = age.map { "\(Int(max(0, $0.rounded()))) seconds" }
+        let ageText = self.ageText
         switch (isDemo, kind) {
         case (true, .live): return "Demo data. Timing is simulated, not live."
         case (true, _): return "Demo data, and the connection to the timing server is down."

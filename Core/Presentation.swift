@@ -17,6 +17,25 @@ public enum Countdown {
     }
 }
 
+/// "45 s", "38 min", "1 h 12 min", "1 d 2 h": how long ago something happened, in the
+/// largest units that read naturally. Rounds to the nearest minute (hour once past a day),
+/// so a value is never shown as "60 min" or "24 h".
+public enum DurationText {
+    public static func compact(seconds: TimeInterval) -> String {
+        let total = seconds.isFinite ? max(0, Int(seconds.rounded())) : 0
+        if total < 60 { return "\(total) s" }
+        let minutes = (total + 30) / 60
+        if minutes < 60 { return "\(minutes) min" }
+        if minutes < 1440 {
+            let hours = minutes / 60, rest = minutes % 60
+            return rest == 0 ? "\(hours) h" : "\(hours) h \(rest) min"
+        }
+        let hours = (total + 1800) / 3600
+        let days = hours / 24, rest = hours % 24
+        return rest == 0 ? "\(days) d" : "\(days) d \(rest) h"
+    }
+}
+
 /// One column of the timing tower.
 public enum TimingColumn: Sendable, Equatable {
     case position, driver, team, gap, lastLap, tyre
@@ -36,6 +55,23 @@ public enum TimingLayout: CaseIterable, Sendable {
     }
 
     public func shows(_ column: TimingColumn) -> Bool { columns.contains(column) }
+
+    /// The columns to draw. When no gap is worth showing the GAP column is dropped, and LAST LAP
+    /// (now the only timing figure) is kept at every width instead of being the first thing to go.
+    public func columns(showingGap: Bool) -> [TimingColumn] {
+        if showingGap { return columns }
+        var result = columns.filter { $0 != .gap }
+        if !result.contains(.lastLap), let tyre = result.firstIndex(of: .tyre) { result.insert(.lastLap, at: tyre) }
+        return result
+    }
+}
+
+extension Collection where Element == TimingDriver {
+    /// A GAP column needs at least two drivers with a gap to compare. Practice and qualifying
+    /// report none (or one), and a column of dashes is noise, so it is dropped there.
+    public var hasUsableGaps: Bool {
+        filter { !($0.gap?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }.count >= 2
+    }
 }
 
 extension TimingDriver {
@@ -75,7 +111,7 @@ extension TimingDriver.LocationState {
         case .unavailable: return "No position data"
         case .stale:
             guard let timestamp = driver.location?.timestamp else { return "Stale" }
-            return "Stale · \(max(0, Int(now.timeIntervalSince(timestamp)))) s old"
+            return "Stale · \(DurationText.compact(seconds: now.timeIntervalSince(timestamp))) old"
         }
     }
 }
@@ -140,5 +176,161 @@ public enum MarkerLabelPlacement {
         let above = markerY - markerRadius - gap - labelHeight
         if above >= bounds.y { return Rect(x: x, y: above, width: labelWidth, height: labelHeight) }
         return Rect(x: x, y: markerY + markerRadius + gap, width: labelWidth, height: labelHeight)
+    }
+}
+
+// MARK: App sections
+
+/// The two top-level screens. The feed status describes the live timing connection, so only
+/// that screen shows it; the calendar has its own demo / saved-schedule labelling.
+public enum AppSection: String, CaseIterable, Identifiable, Sendable {
+    case live = "Live timing", schedule = "Schedule"
+    public var id: Self { self }
+    public var showsFeedStatus: Bool { self == .live }
+}
+
+// MARK: Calendar
+
+public enum ScheduleFilter: String, CaseIterable, Identifiable, Sendable {
+    case all = "All", upcoming = "Upcoming", past = "Past"
+    public var id: Self { self }
+
+    public func includes(_ race: RaceWeekend, at now: Date) -> Bool {
+        switch self {
+        case .all: true
+        case .upcoming: !race.isPast(at: now)
+        case .past: race.isPast(at: now)
+        }
+    }
+}
+
+/// Where the calendar list should be scrolled to when it opens.
+public enum CalendarFocus: Equatable, Sendable {
+    /// The next race, as the hero.
+    case nextRace(round: Int)
+    /// Nothing is left this season: show the last race, with a "Season complete" note.
+    case seasonComplete(lastRound: Int)
+    /// Nothing to focus; stay at the top.
+    case top
+}
+
+extension RaceSchedule {
+    /// Open on what is coming: Upcoming while the season has races left, All once it is over.
+    public func defaultFilter(at now: Date) -> ScheduleFilter {
+        nextRace(at: now) == nil ? .all : .upcoming
+    }
+
+    public func races(matching filter: ScheduleFilter, at now: Date) -> [RaceWeekend] {
+        races.filter { filter.includes($0, at: now) }
+    }
+
+    public func calendarFocus(for filter: ScheduleFilter, at now: Date) -> CalendarFocus {
+        let visible = races(matching: filter, at: now)
+        guard !visible.isEmpty else { return .top }
+        if let next = nextRace(at: now) {
+            return visible.contains { $0.round == next.round } ? .nextRace(round: next.round) : .top
+        }
+        // `visible` is non-empty, so `max` exists.
+        return .seasonComplete(lastRound: visible.map(\.round).max() ?? 0)
+    }
+}
+
+extension RaceWeekend {
+    /// "Mar 6–8", "Jun 28 – Jul 1", or "Mar 6" for a one-day weekend. No weekday names, so it
+    /// always fits on one line. Days are taken in `timeZone`, like every other time in the app.
+    public func dateRange(timeZone: TimeZone = .autoupdatingCurrent, locale: Locale = .autoupdatingCurrent) -> String? {
+        let days = sessions.compactMap { $0.startDate ?? $0.calendarDate(timeZone: timeZone) }
+        guard let first = days.min(), let last = days.max() else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let a = calendar.dateComponents([.year, .month, .day], from: first)
+        let b = calendar.dateComponents([.year, .month, .day], from: last)
+
+        func format(_ template: String, _ date: Date) -> String {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.timeZone = timeZone
+            formatter.setLocalizedDateFormatFromTemplate(template)
+            return formatter.string(from: date)
+        }
+
+        if a == b { return format("MMMd", first) }
+        guard a.year == b.year, a.month == b.month, let startDay = a.day, let endDay = b.day else {
+            return "\(format("MMMd", first)) – \(format("MMMd", last))"
+        }
+        // Month-first locales read "Mar 6–8"; day-first ones read "6–8 Mar".
+        let pattern = DateFormatter.dateFormat(fromTemplate: "MMMd", options: 0, locale: locale) ?? "MMM d"
+        let monthFirst = (pattern.firstIndex(of: "M") ?? pattern.endIndex) < (pattern.firstIndex(of: "d") ?? pattern.endIndex)
+        let month = format("MMM", first)
+        return monthFirst ? "\(month) \(startDay)–\(endDay)" : "\(startDay)–\(endDay) \(month)"
+    }
+}
+
+// MARK: Track map
+
+extension TimingSnapshot {
+    /// True when at least one driver has a position and every known position is stale.
+    /// Stale positions are all the same old spot, so drawing them only piles markers up.
+    public func allPositionsStale(at now: Date) -> Bool {
+        let locations = drivers.compactMap(\.location)
+        return !locations.isEmpty && locations.allSatisfy { $0.isStale(at: now) }
+    }
+
+    /// The caption drawn over the empty track when no position is worth plotting; nil otherwise.
+    public func positionsNotLiveCaption(at now: Date, connected: Bool) -> String? {
+        guard allPositionsStale(at: now) else { return nil }
+        if !connected || upstream != "connected" { return "Disconnected · positions not live" }
+        if let end = session.flatMap({ TrackLayout.parseDate($0.end) }), now > end {
+            return "Session ended · positions not live"
+        }
+        return "Positions not live"
+    }
+}
+
+extension TrackLayout {
+    /// Width over height of the circuit's bounding box, so the map can take the circuit's own shape.
+    public var aspectRatio: Double? {
+        guard points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
+              let minY = points.map(\.y).min(), let maxY = points.map(\.y).max(),
+              maxX > minX, maxY > minY else { return nil }
+        return (maxX - minX) / (maxY - minY)
+    }
+}
+
+/// Keeps overlapping driver markers legible. Markers keep their place unless one would sit
+/// closer than `minDistance` to a marker already placed; then it moves to the nearest free
+/// spot on an expanding ring. Deterministic: the same input order always gives the same output.
+public enum MarkerSpread {
+    public static func separated(_ points: [TrackPoint], minDistance: Double, bounds: MarkerLabelPlacement.Rect? = nil) -> [TrackPoint] {
+        var placed: [TrackPoint] = []
+        for point in points {
+            if isFree(point, among: placed, minDistance: minDistance) {
+                placed.append(point)
+                continue
+            }
+            placed.append(freeSpot(near: point, among: placed, minDistance: minDistance, bounds: bounds) ?? point)
+        }
+        return placed
+    }
+
+    private static func isFree(_ point: TrackPoint, among placed: [TrackPoint], minDistance: Double) -> Bool {
+        !placed.contains { hypot($0.x - point.x, $0.y - point.y) < minDistance - 1e-9 }
+    }
+
+    private static func freeSpot(near origin: TrackPoint, among placed: [TrackPoint], minDistance: Double,
+                                 bounds: MarkerLabelPlacement.Rect?) -> TrackPoint? {
+        for ring in 1...16 {
+            let radius = Double(ring) * minDistance
+            let steps = 6 * ring
+            for step in 0..<steps {
+                let angle = 2 * Double.pi * Double(step) / Double(steps)
+                let candidate = TrackPoint(x: origin.x + radius * cos(angle), y: origin.y + radius * sin(angle))
+                if let bounds, candidate.x < bounds.x || candidate.x > bounds.maxX
+                    || candidate.y < bounds.y || candidate.y > bounds.maxY { continue }
+                if isFree(candidate, among: placed, minDistance: minDistance) { return candidate }
+            }
+        }
+        return nil
     }
 }

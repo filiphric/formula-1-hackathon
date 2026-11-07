@@ -118,8 +118,8 @@ private let clock = TrackLayout.parseDate("2026-11-06T12:00:08Z")!
 @Test func locationStateLabelsSayWhatIsKnown() throws {
     let located = try driver(position: 1, gap: nil, location: nowText)
     #expect(located.locationState(at: clock).label(for: located, at: clock) == "Located")
-    let old = try driver(position: 1, gap: nil, location: "2026-11-06T11:59:00Z")   // 68 s before `clock`
-    #expect(old.locationState(at: clock).label(for: old, at: clock) == "Stale · 68 s old")
+    let old = try driver(position: 1, gap: nil, location: "2026-11-06T11:59:00Z")   // 68 s before `clock`, which is 1 min
+    #expect(old.locationState(at: clock).label(for: old, at: clock) == "Stale · 1 min old")
     let none = try driver(position: 1, gap: nil)
     #expect(none.locationState(at: clock).label(for: none, at: clock) == "No position data")
 }

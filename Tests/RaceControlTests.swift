@@ -115,9 +115,9 @@ private func driver(position: Int?, gap: String?, lapTime: Double?, compound: St
     let demo = FeedStatus.resolve(snapshot: snapshot(mode: "demo", upstream: "simulated", updatedAt: nil), connected: true, hasError: false, now: now)
     #expect(demo.spokenDescription == "Demo data. Timing is simulated, not live.")
     let live = FeedStatus.resolve(snapshot: snapshot(updatedAt: "2026-11-07T13:59:55Z"), connected: true, hasError: false, now: now)
-    #expect(live.spokenDescription == "Live. Last timing 5 seconds ago.")
+    #expect(live.spokenDescription == "Live. Last timing 5 s ago.")
     let stale = FeedStatus.resolve(snapshot: snapshot(updatedAt: "2026-11-07T13:59:00Z"), connected: true, hasError: false, now: now)
-    #expect(stale.spokenDescription == "Stale. No new timing for 60 seconds.")
+    #expect(stale.spokenDescription == "Stale. No new timing for 1 min.")
     #expect(FeedStatus.resolve(snapshot: nil, connected: false, hasError: true, now: now).spokenDescription
             == "Offline. Not connected to the timing server.")
 }

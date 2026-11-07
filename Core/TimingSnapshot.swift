@@ -50,9 +50,14 @@ public struct RaceMessage: Codable, Identifiable, Sendable {
     public let flag: String?
 }
 
-public struct TrackPoint: Codable, Sendable {
+public struct TrackPoint: Codable, Sendable, Equatable {
     public let x: Double
     public let y: Double
+
+    public init(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
 }
 
 public struct DriverLocation: Codable, Sendable {
