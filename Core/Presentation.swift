@@ -392,6 +392,17 @@ public enum MarkerLayout {
     }
 }
 
+/// When drawing every frame is worthwhile: while the newest received position is still easing (at most one
+/// second) plus a margin for late feed updates. Judged from the newest position's arrival rather than from a
+/// per-position timer, so a stale timer cannot switch drawing off just after a newer position has arrived.
+public enum MotionActivity {
+    public static let window: TimeInterval = 1.25
+
+    public static func isActive(lastReceived: Date, now: Date) -> Bool {
+        now.timeIntervalSince(lastReceived) < window
+    }
+}
+
 /// Rendering only: ease between received coordinates over one feed interval.
 /// Never extrapolates; timestamps on DriverLocation remain the source of freshness.
 public struct DriverMotion: Sendable {

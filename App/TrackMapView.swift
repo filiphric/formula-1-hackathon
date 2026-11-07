@@ -9,6 +9,7 @@ struct TrackMapView: View {
     @State private var selectedDriver: Int?
     @State private var drawing: TrackDrawing?
     @State private var animationActive = false
+    @State private var lastReceived = Date.distantPast
     @State private var motions: [Int: DriverMotion] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .caption) private var markerSize = 28
@@ -63,8 +64,9 @@ struct TrackMapView: View {
         .task(id: snapshot.drivers.map(\.location)) {
             receivePositions()
             animationActive = connected && !reduceMotion
-            do { try await Task.sleep(for: .seconds(1)) } catch { return }
-            animationActive = false
+            do { try await Task.sleep(for: .seconds(MotionActivity.window)) } catch { return }
+            // A newer position may have arrived while this timer was waking up: only the newest one decides.
+            if !MotionActivity.isActive(lastReceived: lastReceived, now: Date()) { animationActive = false }
         }
         .onChange(of: connected) { motions = [:]; receivePositions() }
         .onChange(of: snapshot.session?.start) { selectedDriver = nil; motions = [:]; receivePositions() }
@@ -72,6 +74,7 @@ struct TrackMapView: View {
 
     private func receivePositions() {
         let now = Date()
+        lastReceived = now
         let numbers = Set(snapshot.drivers.map(\.number))
         motions = motions.filter { numbers.contains($0.key) }
         for driver in snapshot.drivers {
