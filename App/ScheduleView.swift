@@ -108,8 +108,10 @@ struct ScheduleView: View {
                 VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                     Text("Calendar details").font(RacingStyle.Typography.title)
                     Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.")
+                        .fixedSize(horizontal: false, vertical: true)
                     if let schedule = store.schedule {
                         Text(schedule.timesCaption(timeZoneIdentifier: timeZoneName))
+                            .fixedSize(horizontal: false, vertical: true)
                         if let fetched = schedule.fetchedDate {
                             Label(fetched.formatted(date: .abbreviated, time: .shortened), systemImage: "arrow.clockwise")
                                 .accessibilityLabel("Calendar fetched \(fetched.formatted(date: .abbreviated, time: .shortened))")
@@ -117,7 +119,8 @@ struct ScheduleView: View {
                     }
                 }
                 .font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
-                .padding(RacingStyle.Space.xl).frame(idealWidth: 320)
+                .padding(RacingStyle.Space.xl).frame(width: 320)
+                .fixedSize(horizontal: false, vertical: true)
                 .presentationCompactAdaptation(.popover)
             }
             Button { refresh += 1 } label: {
