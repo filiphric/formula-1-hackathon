@@ -357,6 +357,41 @@ public enum MarkerSpread {
     }
 }
 
+/// The per-frame placement of driver markers, kept free of SwiftUI so it can be tested and run
+/// inside a drawing closure without touching the view hierarchy.
+public enum MarkerLayout {
+    /// Where each located driver's marker is drawn at `now`: the eased position while the location is
+    /// fresh and the feed is connected (the received position otherwise), projected onto the map and then
+    /// nudged apart in stable car-number order when markers would overlap.
+    public static func spots(drivers: [TimingDriver], motions: [Int: DriverMotion], projection: TrackProjection,
+                             now: Date, connected: Bool, animated: Bool,
+                             markerSize: Double, width: Double, height: Double) -> [Int: TrackPoint] {
+        let located = drivers.sorted { $0.number < $1.number }.compactMap { driver -> (Int, TrackPoint)? in
+            guard let location = driver.location else { return nil }
+            let rendered = connected && !location.isStale(at: now)
+                ? motions[driver.number]?.point(at: now, animated: animated) : nil
+            guard let point = projection.project(x: rendered?.x ?? location.x, y: rendered?.y ?? location.y) else { return nil }
+            return (driver.number, point)
+        }
+        let radius = markerSize / 2
+        let bounds = MarkerLabelPlacement.Rect(x: radius, y: radius, width: max(0, width - 2 * radius),
+                                               height: max(0, height - 2 * radius))
+        let spread = MarkerSpread.separated(located.map(\.1), minDistance: markerSize * 0.95, bounds: bounds)
+        return Dictionary(zip(located.map(\.0), spread), uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The driver whose marker a tap at `point` lands on: the nearest marker centre within `radius`.
+    /// Ties go to the lower car number, like the drawing order.
+    public static func driver(at point: TrackPoint, in spots: [Int: TrackPoint], radius: Double) -> Int? {
+        spots.filter { hypot($0.value.x - point.x, $0.value.y - point.y) <= radius }
+            .min { lhs, rhs in
+                let l = hypot(lhs.value.x - point.x, lhs.value.y - point.y)
+                let r = hypot(rhs.value.x - point.x, rhs.value.y - point.y)
+                return l == r ? lhs.key < rhs.key : l < r
+            }?.key
+    }
+}
+
 /// Rendering only: ease between received coordinates over one feed interval.
 /// Never extrapolates; timestamps on DriverLocation remain the source of freshness.
 public struct DriverMotion: Sendable {
