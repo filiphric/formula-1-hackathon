@@ -129,7 +129,9 @@ private let clock = TrackLayout.parseDate("2026-11-06T12:00:08Z")!
 private func weekend(round: Int, raceStart: String?, raceDate: String = "2027-03-14") throws -> RaceWeekend {
     var race: [String: Any] = ["name": "Race", "date": raceDate]
     if let raceStart { race["start"] = raceStart }
-    let object: [String: Any] = ["round": round, "name": "Sample GP", "circuit": "Sample", "country": "Demo", "sessions": [race]]
+    // Practice comes first and is earlier than the race, so counting to the wrong session shows up.
+    let practice: [String: Any] = ["name": "Practice 1", "date": "2027-03-12", "start": "2027-03-12T10:00:00Z"]
+    let object: [String: Any] = ["round": round, "name": "Sample GP", "circuit": "Sample", "country": "Demo", "sessions": [practice, race]]
     return try JSONDecoder().decode(RaceWeekend.self, from: JSONSerialization.data(withJSONObject: object))
 }
 
