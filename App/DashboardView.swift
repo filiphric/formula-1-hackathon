@@ -95,20 +95,32 @@ struct DashboardView: View {
         }.racingCard()
     }
 
+    @ScaledMetric(relativeTo: .body) private var iconWidth = 22
+
+    /// The label repeats what the colour says, so the flag is never colour-only.
+    private func flagLabel(_ kind: RaceControlKind) -> some View {
+        Text(kind.label).racingLabel().foregroundStyle(kind.color).fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder private func time(_ message: RaceMessage) -> some View {
+        if let time = message.timestamp {
+            Text(time.formatted(date: .omitted, time: .standard))
+                .font(RacingStyle.Typography.caption.monospacedDigit()).foregroundStyle(RacingStyle.textSecondary)
+                .lineLimit(1).fixedSize()
+        }
+    }
+
     private func raceControlRow(_ message: RaceMessage) -> some View {
         let kind = message.kind
         return HStack(alignment: .top, spacing: RacingStyle.Space.m) {
             Image(systemName: kind.symbol).foregroundStyle(kind.color)
-                .frame(width: 22).padding(.top, RacingStyle.Space.xs / 2)
+                .frame(width: iconWidth).padding(.top, RacingStyle.Space.xs / 2)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
-                HStack(spacing: RacingStyle.Space.s) {
-                    // The label repeats what the colour says, so the flag is never colour-only.
-                    Text(kind.label).racingLabel().foregroundStyle(kind.color)
-                    if let time = message.timestamp {
-                        Text(time.formatted(date: .omitted, time: .standard))
-                            .font(RacingStyle.Typography.caption.monospacedDigit()).foregroundStyle(RacingStyle.textSecondary)
-                    }
+                // Label and time share a line when they fit, and stack (never break mid-word) when they do not.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: RacingStyle.Space.s) { flagLabel(kind); time(message) }
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { flagLabel(kind); time(message) }
                 }
                 Text(message.message).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textPrimary)
             }.frame(maxWidth: .infinity, alignment: .leading)

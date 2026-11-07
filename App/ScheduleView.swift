@@ -237,12 +237,13 @@ private struct WeekendCard: View {
     /// The next race: big title, countdown to lights out, open by default.
     private var hero: some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.s) {
-            HStack(spacing: RacingStyle.Space.s) {
-                Text(emphasis.badge).font(RacingStyle.Typography.label).tracking(1).foregroundStyle(RacingStyle.onRed)
-                    .padding(.horizontal, RacingStyle.Space.s).padding(.vertical, RacingStyle.Space.xs)
-                    .background(RacingStyle.red, in: Capsule())
-                Text("Round \(race.round) · \(race.country)").racingLabel().foregroundStyle(RacingStyle.textSecondary)
-                Spacer()
+            HStack(alignment: .top, spacing: RacingStyle.Space.s) {
+                // The badge and the round never break mid-word: when they do not fit side by side they stack.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: RacingStyle.Space.s) { badge; roundLabel }
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { badge; roundLabel }
+                }
+                Spacer(minLength: RacingStyle.Space.s)
                 chevron
             }
             Text(race.name).font(RacingStyle.Typography.display).racingHeading().multilineTextAlignment(.leading)
@@ -252,6 +253,18 @@ private struct WeekendCard: View {
                 VStack(alignment: .leading, spacing: RacingStyle.Space.s) { dates; countdown }
             }
         }
+    }
+
+    private var badge: some View {
+        Text(emphasis.badge).font(RacingStyle.Typography.label).tracking(1).foregroundStyle(RacingStyle.onRed)
+            .lineLimit(1).fixedSize()
+            .padding(.horizontal, RacingStyle.Space.s).padding(.vertical, RacingStyle.Space.xs)
+            .background(RacingStyle.red, in: Capsule())
+    }
+
+    private var roundLabel: some View {
+        Text("Round \(race.round) · \(race.country)").racingLabel().foregroundStyle(RacingStyle.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder private var dates: some View {
@@ -320,21 +333,32 @@ private struct WeekendCard: View {
         VStack(spacing: RacingStyle.Space.m) {
             Divider().overlay(RacingStyle.raised)
             ForEach(race.sessions) { session in
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
-                        Text(session.name).font(RacingStyle.Typography.bodyStrong).foregroundStyle(primary)
-                        Text(session.localDate()).font(RacingStyle.Typography.caption).foregroundStyle(secondary)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: RacingStyle.Space.xs) {
-                        Text(session.localTime()).font(RacingStyle.Typography.data).foregroundStyle(primary)
-                        if let start = session.startDate, start <= now {
-                            Text("Started").font(RacingStyle.Typography.caption).foregroundStyle(secondary)
-                        }
-                    }
-                }.accessibilityElement(children: .combine)
+                // Name and time share a row when they fit; otherwise the time drops under the name
+                // instead of breaking either word.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top) { sessionName(session); Spacer(); sessionTime(session, alignment: .trailing) }
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { sessionName(session); sessionTime(session, alignment: .leading) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
         }
         .padding(.top, RacingStyle.Space.s)
+    }
+
+    private func sessionName(_ session: ScheduledSession) -> some View {
+        VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
+            Text(session.name).font(RacingStyle.Typography.bodyStrong).foregroundStyle(primary).fixedSize(horizontal: false, vertical: true)
+            Text(session.localDate()).font(RacingStyle.Typography.caption).foregroundStyle(secondary)
+        }
+    }
+
+    private func sessionTime(_ session: ScheduledSession, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: RacingStyle.Space.xs) {
+            Text(session.localTime()).font(RacingStyle.Typography.data).foregroundStyle(primary).lineLimit(1).fixedSize()
+            if let start = session.startDate, start <= now {
+                Text("Started").font(RacingStyle.Typography.caption).foregroundStyle(secondary)
+            }
+        }
     }
 }
