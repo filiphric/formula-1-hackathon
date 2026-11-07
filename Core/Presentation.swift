@@ -287,6 +287,13 @@ extension TimingSnapshot {
     }
 }
 
+extension TimingSnapshot {
+    /// Seconds since the freshest known position, if any driver has one.
+    public func newestPositionAge(at now: Date) -> TimeInterval? {
+        drivers.compactMap { $0.location?.timestamp }.max().map { now.timeIntervalSince($0) }
+    }
+}
+
 extension TrackLayout {
     /// Width over height of the circuit's bounding box, so the map can take the circuit's own shape.
     public var aspectRatio: Double? {

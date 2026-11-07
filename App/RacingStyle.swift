@@ -54,6 +54,9 @@ enum RacingStyle {
         static let data = Font.system(.callout, weight: .medium).monospacedDigit()
         /// The large figure in a row: position and countdown.
         static let figure = Font.system(.title2, weight: .black).monospacedDigit()
+        /// Titles and numbers of rows that are over (past races): same size, lighter weight.
+        static let headlineQuiet = Font.system(.headline, weight: .medium)
+        static let figureQuiet = Font.system(.title2, weight: .semibold).monospacedDigit()
         /// Three-letter driver codes.
         static let code = Font.system(.headline, weight: .black)
     }
@@ -150,15 +153,16 @@ struct RacingCard: ViewModifier {
 
 /// Page margin: `Space.l` on compact width, `Space.xl` otherwise.
 struct RacingPagePadding: ViewModifier {
+    var edges: Edge.Set = .all
     @Environment(\.horizontalSizeClass) private var sizeClass
     func body(content: Content) -> some View {
-        content.padding(sizeClass == .compact ? RacingStyle.Space.l : RacingStyle.Space.xl)
+        content.padding(edges, sizeClass == .compact ? RacingStyle.Space.l : RacingStyle.Space.xl)
     }
 }
 
 extension View {
     func racingCard(_ density: RacingCard.Density = .regular) -> some View { modifier(RacingCard(density: density)) }
-    func racingPagePadding() -> some View { modifier(RacingPagePadding()) }
+    func racingPagePadding(_ edges: Edge.Set = .all) -> some View { modifier(RacingPagePadding(edges: edges)) }
     /// Short uppercase labels only: column headers, chips, eyebrows.
     /// Headings stop growing at accessibility2 so a title can never push the data off the screen.
     func racingHeading() -> some View { dynamicTypeSize(...DynamicTypeSize.accessibility2) }

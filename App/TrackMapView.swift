@@ -13,23 +13,29 @@ struct TrackMapView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
+            let notLive = snapshot.allPositionsStale(at: context.date)
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 ViewThatFits(in: .horizontal) {
                     HStack {
                         RacingSectionTitle(title: "Driver tracker", subtitle: "Approximate positions")
                         Spacer()
-                        driverPicker
+                        driverPicker(disabled: notLive)
                     }
                     VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                         RacingSectionTitle(title: "Driver tracker", subtitle: "Approximate positions")
-                        driverPicker
+                        driverPicker(disabled: notLive)
                     }
                 }
-                Text(snapshot.trackStatus(at: context.date, connected: connected))
-                    .font(RacingStyle.Typography.label)
-                    .foregroundStyle(snapshot.mode == "demo" ? Color(RacingPalette.statusDemo) : RacingStyle.textSecondary)
+                // When no position is live the map itself carries the caption, so the status line stays quiet.
+                if !notLive {
+                    Text(snapshot.trackStatus(at: context.date, connected: connected))
+                        .font(RacingStyle.Typography.label)
+                        .foregroundStyle(snapshot.mode == "demo" ? Color(RacingPalette.statusDemo) : RacingStyle.textSecondary)
+                }
                 if let track = snapshot.track {
-                    map(track, now: context.date).frame(height: 300)
+                    map(track, now: context.date)
+                        .aspectRatio(mapAspect(track), contentMode: .fit)
+                        .frame(maxWidth: .infinity)
                 } else {
                     ContentUnavailableView("Waiting for track layout", systemImage: "map",
                         description: Text("The circuit outline appears after a complete timed lap is available. Driver locations require a backend with track support."))
@@ -40,15 +46,23 @@ struct TrackMapView: View {
             .racingCard()
         }
         .onChange(of: snapshot.session?.start) { selectedDriver = nil }
+            }
+
+    /// The map takes the circuit's own shape (kept between 1:1 and 2:1) so it fills the card
+    /// instead of floating in a fixed-height box.
+    private func mapAspect(_ track: TrackLayout) -> CGFloat {
+        CGFloat(min(max(track.aspectRatio ?? 1.5, 1.0), 2.0))
     }
 
-    private var driverPicker: some View {
+    private func driverPicker(disabled: Bool) -> some View {
         Picker("Follow driver", selection: $selectedDriver) {
             Text("All drivers").tag(Int?.none)
             ForEach(snapshot.drivers) { driver in
                 Text("\(driver.number) · \(driver.acronym)").tag(Optional(driver.number))
             }
         }.fixedSize()
+            // Nothing to follow when no position is live.
+            .disabled(disabled)
     }
 
     // MARK: Map
@@ -64,18 +78,29 @@ struct TrackMapView: View {
                         }
                     }
                 }
+                let notLive = snapshot.positionsNotLiveCaption(at: now, connected: connected)
+                // Stale positions are one old spot: with every position stale nothing is plotted.
+                let spots = notLive == nil ? markerSpots(projection, size: geometry.size) : [:]
                 ZStack {
                     // Track surface: a wide dark kerb outline with a lighter strip inside it.
                     outline.stroke(RacingStyle.trackEdge, style: StrokeStyle(lineWidth: kerbWidth, lineCap: .round, lineJoin: .round))
                     outline.stroke(RacingStyle.trackSurface, style: StrokeStyle(lineWidth: surfaceWidth, lineCap: .round, lineJoin: .round))
                     startFinish(track, projection)
                     ForEach(snapshot.drivers) { driver in
-                        if let location = driver.location,
-                           let point = projection.project(x: location.x, y: location.y) {
+                        if let location = driver.location, let point = spots[driver.number] {
                             marker(driver, location, at: point, now: now)
                         }
                     }
-                    selectedLabel(projection, size: geometry.size, now: now)
+                    selectedLabel(spots, size: geometry.size, now: now)
+                    if let notLive {
+                        Text(notLive).font(RacingStyle.Typography.bodyStrong)
+                            .foregroundStyle(RacingStyle.textPrimary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, RacingStyle.Space.l).padding(.vertical, RacingStyle.Space.s)
+                            .background(RacingStyle.background.opacity(0.85), in: Capsule())
+                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                            .accessibilityLabel(notLive)
+                    }
                 }
                 .clipped()
                 .accessibilityElement(children: .contain)
@@ -84,6 +109,20 @@ struct TrackMapView: View {
                 ContentUnavailableView("Track layout unavailable", systemImage: "map")
             }
         }
+    }
+
+    /// Where each located driver's marker is drawn: the projected position, nudged apart in
+    /// timing order when markers would overlap.
+    private func markerSpots(_ projection: TrackProjection, size: CGSize) -> [Int: TrackPoint] {
+        let located = snapshot.drivers.compactMap { driver -> (Int, TrackPoint)? in
+            guard let location = driver.location, let point = projection.project(x: location.x, y: location.y) else { return nil }
+            return (driver.number, point)
+        }
+        let radius = Double(markerSize) / 2
+        let bounds = MarkerLabelPlacement.Rect(x: radius, y: radius, width: max(0, Double(size.width) - 2 * radius),
+                                               height: max(0, Double(size.height) - 2 * radius))
+        let spread = MarkerSpread.separated(located.map(\.1), minDistance: Double(markerSize) * 0.95, bounds: bounds)
+        return Dictionary(uniqueKeysWithValues: zip(located.map(\.0), spread))
     }
 
     /// A chequered tick across the track at the first point of the lap, turned to face the direction of travel.
@@ -115,10 +154,10 @@ struct TrackMapView: View {
     }
 
     /// The selected driver's code, in a tag beside the marker that never covers it.
-    @ViewBuilder private func selectedLabel(_ projection: TrackProjection, size: CGSize, now: Date) -> some View {
+    @ViewBuilder private func selectedLabel(_ spots: [Int: TrackPoint], size: CGSize, now: Date) -> some View {
         if let driver = snapshot.drivers.first(where: { $0.number == selectedDriver }),
            let location = driver.location,
-           let point = projection.project(x: location.x, y: location.y) {
+           let point = spots[driver.number] {
             let frame = MarkerLabelPlacement.frame(
                 markerX: point.x, markerY: point.y, markerRadius: markerSize / 2 + 2,
                 labelWidth: labelWidth, labelHeight: labelHeight,
@@ -138,7 +177,7 @@ struct TrackMapView: View {
     // MARK: Footer
 
     @ViewBuilder private func footer(now: Date) -> some View {
-        if let driver = snapshot.drivers.first(where: { $0.number == selectedDriver }) {
+        if let driver = snapshot.drivers.first(where: { $0.number == selectedDriver }), !snapshot.allPositionsStale(at: now) {
             HStack(spacing: RacingStyle.Space.m) {
                 RoundedRectangle(cornerRadius: RacingStyle.Radius.tag).fill(Color.team(driver.color)).frame(width: 4, height: 36)
                 VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
@@ -156,6 +195,9 @@ struct TrackMapView: View {
             .padding(RacingStyle.Space.m)
             .background(RacingStyle.raised, in: RoundedRectangle(cornerRadius: RacingStyle.Radius.row))
             .accessibilityElement(children: .combine)
+        } else if snapshot.allPositionsStale(at: now), let age = snapshot.newestPositionAge(at: now) {
+            Text("Newest position received \(DurationText.compact(seconds: age)) ago")
+                .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         } else {
             Text(snapshot.locationSummary(at: now))
                 .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)

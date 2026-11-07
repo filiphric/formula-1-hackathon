@@ -65,7 +65,7 @@ struct DashboardView: View {
         if feed.isDemo {
             Text("\(separator)Sample timing, not live").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusDemo))
         } else if feed.kind == .stale, let age = feed.age {
-            Text("\(separator)No new timing for \(Int(age)) seconds").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+            Text("\(separator)No new timing for \(feed.ageText ?? "\(Int(age)) s")").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
         } else if feed.kind == .offline {
             Text("\(separator)Showing last timing received. Reconnecting…").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
         } else if let date = feed.updatedAt {
@@ -79,7 +79,7 @@ struct DashboardView: View {
             if snapshot.drivers.isEmpty {
                 Text("Waiting for driver data…").font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
             }
-            TimingTower(drivers: snapshot.drivers)
+            TimingTower(drivers: snapshot.drivers, showsGap: snapshot.drivers.hasUsableGaps)
         }.racingCard()
     }
 

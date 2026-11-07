@@ -13,9 +13,7 @@ struct FormulaLiveApp: App {
     }
 }
 
-private enum AppTab: String, CaseIterable, Identifiable {
-    case live = "Live timing", schedule = "Schedule"
-    var id: Self { self }
+extension AppSection {
     var symbol: String { self == .live ? "flag.checkered" : "calendar" }
 }
 
@@ -26,7 +24,7 @@ private struct RootView: View {
     @State private var showingSettings = false
     /// `-initialTab Schedule` on the command line opens that tab first; otherwise Live timing.
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @State private var tab = AppTab(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .live
+    @State private var tab = AppSection(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .live
 
     var body: some View {
         // One clock drives the app bar's pill and the session hero, so they can never disagree.
@@ -74,22 +72,23 @@ private struct RootView: View {
             }
         } else {
             TabView(selection: $tab) {
-                DashboardView(store: store, feed: feed).tag(AppTab.live)
-                    .tabItem { Label(AppTab.live.rawValue, systemImage: AppTab.live.symbol) }
-                ScheduleView(endpoint: scheduleEndpoint).tag(AppTab.schedule)
-                    .tabItem { Label(AppTab.schedule.rawValue, systemImage: AppTab.schedule.symbol) }
+                DashboardView(store: store, feed: feed).tag(AppSection.live)
+                    .tabItem { Label(AppSection.live.rawValue, systemImage: AppSection.live.symbol) }
+                ScheduleView(endpoint: scheduleEndpoint).tag(AppSection.schedule)
+                    .tabItem { Label(AppSection.schedule.rawValue, systemImage: AppSection.schedule.symbol) }
             }
         }
     }
 }
 
-/// The only app-level chrome: logo, name, feed status. One 3pt brand-red rule underneath is the
+/// The only app-level chrome: logo, name, feed status (live screen only), connection settings. One 3pt brand-red rule underneath is the
 /// only accent in the header area.
 private struct AppBar: View {
     let feed: FeedStatus
-    @Binding var tab: AppTab
+    @Binding var tab: AppSection
     let showsTabs: Bool
     let showSettings: () -> Void
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         // Drop the wordmark before squeezing the pill. The bar's own text stops at xxxLarge:
@@ -116,13 +115,19 @@ private struct AppBar: View {
             }
             if showsTabs {
                 Picker("Section", selection: $tab) {
-                    ForEach(AppTab.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(AppSection.allCases) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.segmented).labelsHidden().fixedSize().padding(.leading, RacingStyle.Space.m)
             }
             Spacer(minLength: RacingStyle.Space.s)
-            FeedStatusPill(status: feed)
+            // The feed pill describes the live timing connection, so it only appears on that screen.
+            if tab.showsFeedStatus { FeedStatusPill(status: feed) }
             Button(action: showSettings) {
-                Image(systemName: "network").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                HStack(spacing: RacingStyle.Space.xs) {
+                    Image(systemName: "gearshape")
+                    // Phones keep just the icon to save width; wider screens say what it is.
+                    if sizeClass != .compact { Text("Connection").font(RacingStyle.Typography.caption.weight(.semibold)).lineLimit(1) }
+                }
+                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
             }.buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
                 .accessibilityLabel("Connection settings")
         }

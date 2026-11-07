@@ -144,9 +144,13 @@ extension TimingDriver {
     }
 
     /// One sentence for VoiceOver: position, driver, team, gap, last lap, tyre.
-    public var accessibilitySummary: String {
+    public var accessibilitySummary: String { accessibilitySummary(showingGap: true) }
+
+    /// Same sentence; without a gap column the gap is left out instead of saying "gap unavailable" on every row.
+    public func accessibilitySummary(showingGap: Bool) -> String {
         let place = position.map { "Position \($0)" } ?? "Position unavailable"
         let lap = formattedLap == "—" ? "last lap unavailable" : "last lap \(formattedLap)"
-        return "\(place), \(name), \(team), \(spokenGap), \(lap), \(TyreCompound(compound).label)"
+        let parts = [place, name, team] + (showingGap ? [spokenGap] : []) + [lap, TyreCompound(compound).label]
+        return parts.joined(separator: ", ")
     }
 }

@@ -2,8 +2,11 @@ import SwiftUI
 
 /// The leaderboard as a timing tower: position, team tag, driver code, GAP, LAST LAP, tyre.
 /// It tries the widest column set first and drops team, then last lap, before it ever scrolls.
+/// Sessions without gaps drop GAP and keep LAST LAP at every width.
 struct TimingTower: View {
     let drivers: [TimingDriver]
+    /// False in sessions that report no gaps (practice, qualifying): the GAP column would be all dashes.
+    let showsGap: Bool
     @ScaledMetric(relativeTo: .body) private var rowHeight = 44
 
     var body: some View {
@@ -17,14 +20,15 @@ struct TimingTower: View {
     }
 
     private func tower(_ layout: TimingLayout) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: RacingStyle.Space.m, verticalSpacing: 0) {
+        let columns = layout.columns(showingGap: showsGap)
+        return Grid(alignment: .leading, horizontalSpacing: RacingStyle.Space.m, verticalSpacing: 0) {
             GridRow {
                 Text("Pos").gridColumnAlignment(.trailing)
                 Color.clear.frame(width: 4, height: 1)
                 Text("Driver").gridColumnAlignment(.leading)
-                if layout.shows(.team) { Text("Team").gridColumnAlignment(.leading) }
-                Text("Gap").gridColumnAlignment(.trailing)
-                if layout.shows(.lastLap) { Text("Last lap").gridColumnAlignment(.trailing) }
+                if columns.contains(.team) { Text("Team").gridColumnAlignment(.leading) }
+                if columns.contains(.gap) { Text("Gap").gridColumnAlignment(.trailing) }
+                if columns.contains(.lastLap) { Text("Last lap").gridColumnAlignment(.trailing) }
                 Text("Tyre").gridColumnAlignment(.center)
             }
             .racingLabel().foregroundStyle(RacingStyle.textSecondary)
@@ -33,7 +37,7 @@ struct TimingTower: View {
             .accessibilityHidden(true)
             Divider().overlay(RacingStyle.raised).gridCellUnsizedAxes(.horizontal)
             ForEach(drivers) { driver in
-                row(driver, layout)
+                row(driver, columns)
                 if driver.id != drivers.last?.id {
                     Divider().overlay(RacingStyle.raised).gridCellUnsizedAxes(.horizontal)
                 }
@@ -41,7 +45,7 @@ struct TimingTower: View {
         }
     }
 
-    private func row(_ driver: TimingDriver, _ layout: TimingLayout) -> some View {
+    private func row(_ driver: TimingDriver, _ columns: [TimingColumn]) -> some View {
         GridRow {
             Text(driver.position.map(String.init) ?? "—")
                 .font(RacingStyle.Typography.figure)
@@ -51,20 +55,20 @@ struct TimingTower: View {
                 .frame(width: 4, height: rowHeight * 0.6)
             Text(driver.acronym).font(RacingStyle.Typography.code)
                 .lineLimit(1).fixedSize()
-                .frame(maxWidth: layout.shows(.team) ? nil : .infinity, alignment: .leading)
-            if layout.shows(.team) {
+                .frame(maxWidth: columns.contains(.team) ? nil : .infinity, alignment: .leading)
+            if columns.contains(.team) {
                 Text(driver.team).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
                     .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             }
-            gap(driver)
-            if layout.shows(.lastLap) {
+            if columns.contains(.gap) { gap(driver) }
+            if columns.contains(.lastLap) {
                 Text(driver.formattedLap).font(RacingStyle.Typography.data).foregroundStyle(RacingStyle.textSecondary)
                     .lineLimit(1).fixedSize()
             }
             TyreBadge(compound: TyreCompound(driver.compound))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(driver.accessibilitySummary)
+        .accessibilityLabel(driver.accessibilitySummary(showingGap: columns.contains(.gap)))
     }
 
     @ViewBuilder private func gap(_ driver: TimingDriver) -> some View {

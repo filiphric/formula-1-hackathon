@@ -243,3 +243,18 @@ private func distance(_ a: TrackPoint, _ b: TrackPoint) -> Double { hypot(a.x - 
     let flat = try JSONDecoder().decode(TrackLayout.self, from: Data(#"{"source":"t","points":[{"x":1,"y":1},{"x":1,"y":1}]}"#.utf8))
     #expect(flat.aspectRatio == nil)
 }
+
+// MARK: VoiceOver rows follow the visible columns
+
+@Test func spokenRowOmitsTheGapWhenTheGapColumnIsHidden() {
+    let driver = TimingDriver(number: 4, name: "Lando Norris", acronym: "NOR", team: "McLaren", color: "FF8000",
+                              position: 2, gap: nil, lap: 3, lapTime: 91.312, compound: "SOFT", location: nil)
+    #expect(driver.accessibilitySummary(showingGap: false) == "Position 2, Lando Norris, McLaren, last lap 1:31.312, Soft tyre")
+    #expect(driver.accessibilitySummary(showingGap: true) == "Position 2, Lando Norris, McLaren, gap unavailable, last lap 1:31.312, Soft tyre")
+}
+
+@Test func newestPositionAgeIsMeasuredFromTheFreshestFix() {
+    let snapshot = trackSnapshot(locationDates: ["2026-11-06T12:00:00Z", "2026-11-06T13:00:00Z", nil])
+    #expect(snapshot.newestPositionAge(at: TrackLayout.parseDate("2026-11-06T14:00:00Z")!) == 3_600)
+    #expect(trackSnapshot(locationDates: [nil]).newestPositionAge(at: after) == nil)
+}
