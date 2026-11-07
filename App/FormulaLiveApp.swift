@@ -106,8 +106,11 @@ private struct AppBar: View {
 
     private func bar(showName: Bool) -> some View {
         HStack(spacing: RacingStyle.Space.m) {
-            Image(systemName: "flag.checkered").font(RacingStyle.Typography.title).foregroundStyle(RacingStyle.red)
-                .accessibilityHidden(true)
+            Image("F1Logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 64, height: 16)
+                .accessibilityLabel("Formula 1")
             if showName {
                 Text("FORMULA LIVE").font(RacingStyle.Typography.headline).italic()
                     .lineLimit(1).fixedSize()
