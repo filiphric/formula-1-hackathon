@@ -106,22 +106,24 @@ struct ScheduleView: View {
             .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
             .accessibilityLabel("Calendar details").help("Calendar details")
             .popover(isPresented: $showingDetails, arrowEdge: .top) {
-                VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-                    Text("Calendar details").font(RacingStyle.Typography.title)
-                    Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.")
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let schedule = store.schedule {
-                        Text(schedule.timesCaption(timeZoneIdentifier: timeZoneName))
+                ScrollView {
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+                        Text("Calendar details").font(RacingStyle.Typography.title)
+                        Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.")
                             .fixedSize(horizontal: false, vertical: true)
-                        if let fetched = schedule.fetchedDate {
-                            Label(fetched.formatted(date: .abbreviated, time: .shortened), systemImage: "arrow.clockwise")
-                                .accessibilityLabel("Calendar fetched \(fetched.formatted(date: .abbreviated, time: .shortened))")
+                        if let schedule = store.schedule {
+                            Text(schedule.timesCaption(timeZoneIdentifier: timeZoneName))
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let fetched = schedule.fetchedDate {
+                                Label(fetched.formatted(date: .abbreviated, time: .shortened), systemImage: "arrow.clockwise")
+                                    .accessibilityLabel("Calendar fetched \(fetched.formatted(date: .abbreviated, time: .shortened))")
+                            }
                         }
                     }
+                    .font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+                    .padding(RacingStyle.Space.xl)
                 }
-                .font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
-                .padding(RacingStyle.Space.xl).frame(width: 320)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(idealWidth: 320, maxWidth: 320, idealHeight: 300, maxHeight: 360)
                 .presentationCompactAdaptation(.popover)
             }
             Button { refresh += 1 } label: {
