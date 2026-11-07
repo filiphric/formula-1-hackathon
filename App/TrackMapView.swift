@@ -105,9 +105,11 @@ struct TrackMapView: View {
     private func map(_ track: TrackLayout, now: Date) -> some View {
         GeometryReader { geometry in
             let key = TrackDrawing.Key(track: track, size: geometry.size)
+            // A cache miss is valid geometry, not an unavailable track.
+            let currentDrawing = drawing.flatMap { $0.key == key ? $0 : nil } ?? TrackDrawing(key: key)
             Group {
-            if let drawing, drawing.key == key, let projection = drawing.projection {
-                let outline = drawing.outline
+            if let projection = currentDrawing.projection {
+                let outline = currentDrawing.outline
                 let notLive = snapshot.positionsNotLiveCaption(at: now, connected: connected)
                 // Stale positions are one old spot: with every position stale nothing is plotted.
                 let spots = notLive == nil ? markerSpots(projection, size: geometry.size, now: now) : [:]
@@ -115,7 +117,7 @@ struct TrackMapView: View {
                     // Track surface: a wide dark kerb outline with a lighter strip inside it.
                     outline.stroke(RacingStyle.trackEdge, style: StrokeStyle(lineWidth: kerbWidth, lineCap: .round, lineJoin: .round))
                     outline.stroke(RacingStyle.trackSurface, style: StrokeStyle(lineWidth: surfaceWidth, lineCap: .round, lineJoin: .round))
-                    startFinish(drawing)
+                    startFinish(currentDrawing)
                     ForEach(snapshot.drivers) { driver in
                         if let location = driver.location, let point = spots[driver.number] {
                             marker(driver, location, at: point, now: now)
