@@ -105,7 +105,7 @@ struct ScheduleView: View {
             }
             .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
             .accessibilityLabel("Calendar details").help("Calendar details")
-            .popover(isPresented: $showingDetails) {
+            .popover(isPresented: $showingDetails, arrowEdge: .top) {
                 VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                     Text("Calendar details").font(RacingStyle.Typography.title)
                     Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.")
