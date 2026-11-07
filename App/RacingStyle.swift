@@ -11,14 +11,50 @@ enum RacingStyle {
     static let red = Color(RacingPalette.brandRed)
     static let accentText = Color(RacingPalette.accentText)
     static let onRed = Color(RacingPalette.onBrandRed)
-    static let headerRed = Color(red: 0.55, green: 0.02, blue: 0.02)
     static let background = Color(RacingPalette.background)
     static let surface = Color(RacingPalette.surface)
     static let raised = Color(RacingPalette.raised)
     static let textPrimary = Color(RacingPalette.textPrimary)
     static let textSecondary = Color(RacingPalette.textSecondary)
     static let textTertiary = Color(RacingPalette.textTertiary)
-    static let heading = Font.system(.title2, design: .rounded, weight: .black)
+    static let trackEdge = Color(RacingPalette.trackEdge)
+    static let trackSurface = Color(RacingPalette.trackSurface)
+
+    /// Spacing scale. Every gap and padding in the app is one of these.
+    enum Space {
+        static let xs: CGFloat = 4
+        static let s: CGFloat = 8
+        static let m: CGFloat = 12
+        static let l: CGFloat = 16
+        static let xl: CGFloat = 24
+    }
+
+    /// Corner radii. Chips and badges are `Capsule()`.
+    enum Radius {
+        static let card: CGFloat = 12
+        static let row: CGFloat = 8
+    }
+
+    /// The type scale, defined once. System default design (never rounded); heavy and black
+    /// for display and headlines; every size is a text style so Dynamic Type still applies.
+    enum Typography {
+        /// Circuit and race names: the one big line on a screen.
+        static let display = Font.system(.largeTitle, weight: .black)
+        /// Section and card titles.
+        static let title = Font.system(.title2, weight: .heavy)
+        static let headline = Font.system(.headline, weight: .heavy)
+        static let body = Font.system(.body)
+        static let bodyStrong = Font.system(.body, weight: .semibold)
+        static let caption = Font.system(.caption)
+        /// Short column and chip labels. Pair with `.racingLabel()` for case and tracking.
+        static let label = Font.system(.caption2, weight: .bold)
+        /// Timing data: gaps, lap times, clock times.
+        static let data = Font.system(.callout, weight: .medium).monospacedDigit()
+        /// The large figure in a row: position and countdown.
+        static let figure = Font.system(.title2, weight: .black).monospacedDigit()
+        /// Three-letter driver codes.
+        static let code = Font.system(.headline, weight: .black)
+    }
 }
 
 extension FeedStatus {
@@ -48,9 +84,9 @@ struct FeedStatusPill: View {
 
     var body: some View {
         Label(status.label, systemImage: status.symbol)
-            .font(.caption.bold())
+            .font(RacingStyle.Typography.label)
             .foregroundStyle(Color(RacingPalette.onStatus))
-            .padding(.horizontal, 10).padding(.vertical, 6)
+            .padding(.horizontal, RacingStyle.Space.m).padding(.vertical, RacingStyle.Space.xs)
             .background(status.fill, in: Capsule())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Feed status")
@@ -84,44 +120,44 @@ extension RaceControlKind {
 
 struct RacingSectionTitle: View {
     let title: String
-    let subtitle: String
+    var subtitle: String?
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            UnevenRoundedRectangle(topLeadingRadius: 2, bottomTrailingRadius: 5)
-                .fill(RacingStyle.red).frame(width: 5, height: 30)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title.uppercased()).font(.system(.headline, design: .rounded, weight: .heavy))
-                Text(subtitle).font(.caption).foregroundStyle(RacingStyle.textSecondary)
+        VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
+            Text(title).font(RacingStyle.Typography.title)
+            if let subtitle {
+                Text(subtitle).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
             }
-        }.accessibilityElement(children: .combine)
+        }.accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
     }
 }
 
+/// Cards pad by `Space.l` on compact width (phones) and `Space.xl` otherwise; `.compact` is for list rows.
 struct RacingCard: ViewModifier {
+    enum Density { case regular, compact }
+    var density: Density = .regular
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
     func body(content: Content) -> some View {
         content
-            .padding(20)
-            .background(RacingStyle.surface, in: RoundedRectangle(cornerRadius: 12))
+            .padding(density == .compact ? RacingStyle.Space.m : sizeClass == .compact ? RacingStyle.Space.l : RacingStyle.Space.xl)
+            .background(RacingStyle.surface, in: RoundedRectangle(cornerRadius: RacingStyle.Radius.card))
     }
 }
 
-struct RacingStripes: View {
-    var body: some View {
-        Canvas { context, size in
-            for index in 0..<12 {
-                let x = size.width - CGFloat(index) * 24
-                var stripe = Path()
-                stripe.move(to: CGPoint(x: x, y: 0))
-                stripe.addLine(to: CGPoint(x: x - size.height, y: size.height))
-                context.stroke(stripe, with: .color(.white.opacity(0.045)), lineWidth: 10)
-            }
-        }.accessibilityHidden(true).allowsHitTesting(false)
+/// Page margin: `Space.l` on compact width, `Space.xl` otherwise.
+struct RacingPagePadding: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    func body(content: Content) -> some View {
+        content.padding(sizeClass == .compact ? RacingStyle.Space.l : RacingStyle.Space.xl)
     }
 }
 
 extension View {
-    func racingCard() -> some View { modifier(RacingCard()) }
+    func racingCard(_ density: RacingCard.Density = .regular) -> some View { modifier(RacingCard(density: density)) }
+    func racingPagePadding() -> some View { modifier(RacingPagePadding()) }
+    /// Short uppercase labels only: column headers, chips, eyebrows.
+    func racingLabel() -> some View { font(RacingStyle.Typography.label).textCase(.uppercase).tracking(1) }
 }
 
 struct TyreBadge: View {
@@ -141,7 +177,7 @@ struct TyreBadge: View {
 
     var body: some View {
         Text(compound.symbol)
-            .font(.system(.caption, design: .rounded, weight: .heavy))
+            .font(RacingStyle.Typography.label)
             .foregroundStyle(color)
             .frame(width: diameter, height: diameter)
             .background(color.opacity(0.08), in: Circle())

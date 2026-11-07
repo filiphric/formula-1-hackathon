@@ -13,32 +13,112 @@ struct FormulaLiveApp: App {
     }
 }
 
+private enum AppTab: String, CaseIterable, Identifiable {
+    case live = "Live timing", schedule = "Schedule"
+    var id: Self { self }
+    var symbol: String { self == .live ? "flag.checkered" : "calendar" }
+}
+
 private struct RootView: View {
     @AppStorage("serverEndpoint") private var endpoint = "ws://localhost:8787/live"
+    @State private var store = TimingStore()
+    @State private var activeEndpoint = ""
+    @State private var showingSettings = false
+    @State private var tab = AppTab.live
 
     var body: some View {
-        TabView {
-            DashboardView().tabItem { Label("Live timing", systemImage: "flag.checkered") }
-            ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))
-                .tabItem { Label("Schedule", systemImage: "calendar") }
-        }
-        .tint(RacingStyle.accentText)
-        #if os(macOS)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: "flag.checkered").font(.title2.bold()).foregroundStyle(RacingStyle.red)
-                Text("FORMULA LIVE").font(.system(.headline, design: .rounded, weight: .black)).italic()
-                Spacer()
-                ViewThatFits(in: .horizontal) {
-                    Text("RACE WEEKEND COMPANION").font(.caption2.bold()).tracking(1.5)
-                        .foregroundStyle(RacingStyle.textSecondary).fixedSize()
-                    Color.clear.frame(width: 0, height: 0)
-                }
+        // One clock drives the app bar's pill and the session hero, so they can never disagree.
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let feed = FeedStatus.resolve(snapshot: store.snapshot, connected: store.connected,
+                                          hasError: store.error != nil, now: context.date)
+            VStack(spacing: 0) {
+                AppBar(feed: feed, tab: $tab, showSettings: { showingSettings = true })
+                content(feed: feed)
             }
-            .padding(.horizontal, 24).padding(.vertical, 16)
-            .background(RacingStyle.background.overlay { RacingStripes() })
-            .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
+        }
+        .background(RacingStyle.background.ignoresSafeArea())
+        .tint(RacingStyle.accentText)
+        .sheet(isPresented: $showingSettings) { ConnectionSheet(endpoint: $endpoint) { connect() } }
+        .task { activeEndpoint = endpoint }
+        .task(id: activeEndpoint) {
+            guard !activeEndpoint.isEmpty else { return }
+            await store.run(endpoint: activeEndpoint)
+        }
+    }
+
+    private func connect() {
+        activeEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        showingSettings = false
+    }
+
+    @ViewBuilder private func content(feed: FeedStatus) -> some View {
+        #if os(macOS)
+        // The tab control lives in the app bar, so the window has one bar of chrome, not two.
+        ZStack {
+            DashboardView(store: store, feed: feed)
+                .opacity(tab == .live ? 1 : 0).allowsHitTesting(tab == .live).accessibilityHidden(tab != .live)
+            ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))
+                .opacity(tab == .schedule ? 1 : 0).allowsHitTesting(tab == .schedule).accessibilityHidden(tab != .schedule)
+        }
+        #else
+        TabView(selection: $tab) {
+            DashboardView(store: store, feed: feed).tag(AppTab.live)
+                .tabItem { Label(AppTab.live.rawValue, systemImage: AppTab.live.symbol) }
+            ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)).tag(AppTab.schedule)
+                .tabItem { Label(AppTab.schedule.rawValue, systemImage: AppTab.schedule.symbol) }
         }
         #endif
+    }
+}
+
+/// The only app-level chrome: logo, name, feed status. One 3pt brand-red rule underneath is the
+/// only accent in the header area.
+private struct AppBar: View {
+    let feed: FeedStatus
+    @Binding var tab: AppTab
+    let showSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: RacingStyle.Space.m) {
+            Image(systemName: "flag.checkered").font(RacingStyle.Typography.title).foregroundStyle(RacingStyle.red)
+                .accessibilityHidden(true)
+            Text("FORMULA LIVE").font(RacingStyle.Typography.headline).italic()
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .accessibilityAddTraits(.isHeader)
+            #if os(macOS)
+            Picker("Section", selection: $tab) {
+                ForEach(AppTab.allCases) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().fixedSize().padding(.leading, RacingStyle.Space.m)
+            #endif
+            Spacer(minLength: RacingStyle.Space.s)
+            FeedStatusPill(status: feed)
+            Button(action: showSettings) {
+                Image(systemName: "network").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
+                .accessibilityLabel("Connection settings")
+        }
+        .padding(.horizontal, RacingStyle.Space.l)
+        .frame(minHeight: 48)
+        .background(RacingStyle.background, ignoresSafeAreaEdges: .top)
+        .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
+    }
+}
+
+private struct ConnectionSheet: View {
+    @Binding var endpoint: String
+    let connect: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RacingStyle.Space.l) {
+            Text("Timing server").font(RacingStyle.Typography.title)
+            Text("Use localhost on your Mac or iOS Simulator. On an iPhone, use your Mac’s local network address.")
+                .font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+            TextField("ws://localhost:8787/live", text: $endpoint)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+            Text("OpenF1 credentials stay on the backend.")
+                .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+            Button("Connect", action: connect).buttonStyle(.borderedProminent).tint(RacingStyle.red)
+        }.padding(RacingStyle.Space.xl).frame(minWidth: 300, idealWidth: 440)
     }
 }

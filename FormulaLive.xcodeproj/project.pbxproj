@@ -20,6 +20,7 @@
 		D309FEA7D841C41E3025C505 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88EBBFAD212F95C10C4871C /* DesignTokens.swift */; };
 		ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */; };
 		B1C2D3E4F5061728394A5B6C /* Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* Presentation.swift */; };
+		D1E2F3A4B5C60718394A5B6D /* TimingTower.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		E88EBBFAD212F95C10C4871C /* DesignTokens.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesignTokens.swift; path = Core/DesignTokens.swift; sourceTree = "<group>"; };
 		ED500EE61E80AF8A96A69188 /* TrackMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackMapView.swift; path = App/TrackMapView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* Presentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Presentation.swift; path = Core/Presentation.swift; sourceTree = "<group>"; };
+		C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingTower.swift; path = App/TimingTower.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,6 +81,7 @@
 			isa = PBXGroup;
 			children = (
 				0BB4009AC0DE0B45929ED0A0 /* DashboardView.swift */,
+				C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */,
 				8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */,
 				C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */,
 				7192FDEA907E8CD17CD69603 /* TimingSnapshot.swift */,
@@ -167,6 +170,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				25F3BF3448627006D20C70A7 /* DashboardView.swift in Sources */,
+				D1E2F3A4B5C60718394A5B6D /* TimingTower.swift in Sources */,
 				AF45B95BA68031D19688E706 /* FormulaLiveApp.swift in Sources */,
 				7B78516057A02DB110E15BAA /* TimingStore.swift in Sources */,
 				4F74F5041D4934ACD47744AA /* TimingSnapshot.swift in Sources */,
