@@ -39,6 +39,7 @@
 		ED500EE61E80AF8A96A69188 /* TrackMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackMapView.swift; path = App/TrackMapView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* Presentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Presentation.swift; path = Core/Presentation.swift; sourceTree = "<group>"; };
 		C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingTower.swift; path = App/TimingTower.swift; sourceTree = "<group>"; };
+		7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +101,7 @@
 		BBF2C84096F07D38FFE21794 = {
 			isa = PBXGroup;
 			children = (
+				7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */,
 				40FEA8D98BE437E530CFA25F /* Products */,
 				1F31170BF884677D1B1AF1B1 /* Frameworks */,
 				54B882DFD8937BC3C650039D /* Sources */,
@@ -190,6 +192,7 @@
 /* Begin XCBuildConfiguration section */
 		435C4266EFDDD802B50C735D /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -282,6 +285,7 @@
 		};
 		B1FF2470807F0E5FDDC8B4E7 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

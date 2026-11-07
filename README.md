@@ -138,6 +138,16 @@ and age of the latest timing. A quiet feed between sessions is expected.
 4. Select your Apple development team in Xcode before running on the phone; allow
    local network access when prompted.
 
+To build, install and launch on a connected, trusted iPhone from the command line:
+
+```sh
+cp Config.local.example.xcconfig Config.local.xcconfig   # once; set DEVELOPMENT_TEAM
+Scripts/install-iphone.sh --device "My iPhone" --endpoint ws://YOUR-MAC-LAN-IP:8787/live
+```
+
+The script finds the device by name (default `Ajfonis`), replaces the installed app in place
+and passes `--endpoint` for that launch only; enter it once in Connection settings to keep it.
+
 The development server has no client authentication and defaults to loopback.
 Binding to the LAN exposes its timing stream to that network. Before internet
 hosting, add HTTPS/WSS, app-client authentication, access controls, and connection

@@ -5,3 +5,4 @@ Backend/.env
 *.xcuserstate
 xcuserdata/
 .DS_Store
+Config.local.xcconfig
