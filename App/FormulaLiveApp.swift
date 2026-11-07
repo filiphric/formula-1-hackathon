@@ -23,6 +23,7 @@ private struct RootView: View {
                 .tabItem { Label("Schedule", systemImage: "calendar") }
         }
         .tint(RacingStyle.red)
+        #if os(macOS)
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(spacing: 12) {
                 Image(systemName: "flag.checkered").font(.title2.bold()).foregroundStyle(RacingStyle.red)
@@ -38,5 +39,6 @@ private struct RootView: View {
             .background(RacingStyle.background.overlay { RacingStripes() })
             .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
         }
+        #endif
     }
 }

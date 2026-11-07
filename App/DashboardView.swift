@@ -117,35 +117,39 @@ struct DashboardView: View {
             if snapshot.drivers.isEmpty {
                 Text("Waiting for driver data…").foregroundStyle(.secondary)
             }
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
-                GridRow {
-                    Text("POS")
-                    Color.clear.frame(width: 4, height: 1).accessibilityHidden(true)
-                    Text("DRIVER")
-                    Text("GAP / LAP").gridColumnAlignment(.trailing)
-                    Text("TYRE").gridColumnAlignment(.center)
-                }.font(.system(.caption2, weight: .bold)).foregroundStyle(.secondary)
-                ForEach(snapshot.drivers) { driver in
+            // Keep every timing column reachable at narrow widths and large text sizes.
+            ScrollView(.horizontal) {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
                     GridRow {
-                        Text(driver.position.map(String.init) ?? "—")
-                            .font(.title3.bold().monospacedDigit())
-                        RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
-                            .frame(width: 4, height: 34)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(driver.acronym).font(.system(.headline, design: .rounded, weight: .heavy))
-                            Text(driver.team).font(.caption).foregroundStyle(.secondary)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                        VStack(alignment: .trailing, spacing: 3) {
-                            Text(driver.gap ?? (driver.position == 1 ? "LEADER" : "—"))
-                                .font(.subheadline.monospacedDigit())
-                            Text(driver.formattedLap).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        Text("POS")
+                        Color.clear.frame(width: 4, height: 1).accessibilityHidden(true)
+                        Text("DRIVER")
+                        Text("GAP / LAP").gridColumnAlignment(.trailing)
+                        Text("TYRE").gridColumnAlignment(.center)
+                    }.font(.system(.caption2, weight: .bold)).foregroundStyle(.secondary)
+                    ForEach(snapshot.drivers) { driver in
+                        GridRow {
+                            Text(driver.position.map(String.init) ?? "—")
+                                .font(.title3.bold().monospacedDigit())
+                            RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
+                                .frame(width: 4, height: 34)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(driver.acronym).font(.system(.headline, design: .rounded, weight: .heavy))
+                                Text(driver.team).font(.caption).foregroundStyle(.secondary)
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text(driver.gap ?? (driver.position == 1 ? "LEADER" : "—"))
+                                    .font(.subheadline.monospacedDigit())
+                                Text(driver.formattedLap).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            }
+                            TyreBadge(compound: TyreCompound(driver.compound))
+                        }.accessibilityElement(children: .combine)
+                        if driver.id != snapshot.drivers.last?.id {
+                            Divider().opacity(0.4).gridCellUnsizedAxes(.horizontal)
                         }
-                        TyreBadge(compound: TyreCompound(driver.compound))
-                    }.accessibilityElement(children: .combine)
-                    if driver.id != snapshot.drivers.last?.id {
-                        Divider().opacity(0.4).gridCellUnsizedAxes(.horizontal)
                     }
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
         }.racingCard()
     }
@@ -159,6 +163,7 @@ struct DashboardView: View {
             ForEach(snapshot.messages.prefix(10)) { message in
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "flag.fill").foregroundStyle(.secondary).padding(.top, 2)
+                        .accessibilityHidden(true)
                     Text(message.message).font(.callout)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }.padding(14).background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
