@@ -8,6 +8,7 @@ struct ScheduleView: View {
     /// The season the filter was last defaulted for, so a refresh keeps the filter the user picked.
     @State private var defaultedFor = ""
     @State private var refresh = 0
+    @State private var showingDetails = false
     @Environment(\.dynamicTypeSize) private var typeSize
     private let currentYear = Calendar.current.component(.year, from: .now)
     private var timeZoneName: String { TimeZone.autoupdatingCurrent.identifier }
@@ -98,6 +99,27 @@ struct ScheduleView: View {
                 }
             }.labelsHidden().fixedSize()
             Spacer()
+            Button { showingDetails = true } label: {
+                Image(systemName: "info.circle").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
+            .accessibilityLabel("Calendar details").help("Calendar details")
+            .popover(isPresented: $showingDetails) {
+                VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+                    Text("Calendar details").font(RacingStyle.Typography.title)
+                    Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.")
+                    if let schedule = store.schedule {
+                        Text(schedule.timesCaption(timeZoneIdentifier: timeZoneName))
+                        if let fetched = schedule.fetchedDate {
+                            Label(fetched.formatted(date: .abbreviated, time: .shortened), systemImage: "arrow.clockwise")
+                                .accessibilityLabel("Calendar fetched \(fetched.formatted(date: .abbreviated, time: .shortened))")
+                        }
+                    }
+                }
+                .font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+                .padding(RacingStyle.Space.xl).frame(idealWidth: 320)
+                .presentationCompactAdaptation(.popover)
+            }
             Button { refresh += 1 } label: {
                 Image(systemName: "arrow.clockwise").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
             }

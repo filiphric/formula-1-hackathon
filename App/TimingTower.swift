@@ -58,13 +58,13 @@ struct TimingTower: View {
         let columns = layout.columns(showingGap: showsGap)
         return Grid(alignment: .leading, horizontalSpacing: RacingStyle.Space.m, verticalSpacing: 0) {
             GridRow {
-                Image(systemName: "number").help("Position").gridColumnAlignment(.trailing)
+                Image(systemName: "number").accessibilityLabel("Position").help("Position").gridColumnAlignment(.trailing)
                 Color.clear.frame(width: 4, height: 1)
-                Image(systemName: "person.fill").help("Driver").gridColumnAlignment(.leading)
-                if columns.contains(.team) { Image(systemName: "person.2.fill").help("Team").gridColumnAlignment(.leading) }
+                Image(systemName: "person.fill").accessibilityLabel("Driver").help("Driver").gridColumnAlignment(.leading)
+                if columns.contains(.team) { Image(systemName: "person.2.fill").accessibilityLabel("Team").help("Team").gridColumnAlignment(.leading) }
                 if columns.contains(.gap) { Text("Gap").gridColumnAlignment(.trailing) }
                 if columns.contains(.lastLap) { Text("Last lap").gridColumnAlignment(.trailing) }
-                Image(systemName: "circle.circle").help("Tyre").gridColumnAlignment(.center)
+                Image(systemName: "circle.circle").accessibilityLabel("Tyre").help("Tyre").gridColumnAlignment(.center)
             }
             .racingLabel().foregroundStyle(RacingStyle.textSecondary)
             .lineLimit(1).fixedSize()
