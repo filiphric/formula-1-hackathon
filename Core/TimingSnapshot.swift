@@ -89,7 +89,7 @@ public struct DriverLocation: Codable, Sendable, Equatable {
     }
 }
 
-public struct TrackLayout: Codable, Sendable {
+public struct TrackLayout: Codable, Sendable, Equatable {
     public let source: String
     public let points: [TrackPoint]
 

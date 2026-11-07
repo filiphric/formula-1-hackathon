@@ -7,6 +7,7 @@ struct TrackMapView: View {
     /// (the circuit keeps its own proportions, centred). Stacked, the map takes the circuit's own shape.
     var fillsHeight = false
     @State private var selectedDriver: Int?
+    @State private var drawing: TrackDrawing?
     @State private var animationActive = false
     @State private var motions: [Int: DriverMotion] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -103,15 +104,10 @@ struct TrackMapView: View {
 
     private func map(_ track: TrackLayout, now: Date) -> some View {
         GeometryReader { geometry in
-            if let projection = track.projection(width: geometry.size.width, height: geometry.size.height) {
-                let outline = Path { path in
-                    for (index, point) in track.points.enumerated() {
-                        if let mapped = projection.project(x: point.x, y: point.y) {
-                            let position = CGPoint(x: mapped.x, y: mapped.y)
-                            if index == 0 { path.move(to: position) } else { path.addLine(to: position) }
-                        }
-                    }
-                }
+            let key = TrackDrawing.Key(track: track, size: geometry.size)
+            Group {
+            if let drawing, drawing.key == key, let projection = drawing.projection {
+                let outline = drawing.outline
                 let notLive = snapshot.positionsNotLiveCaption(at: now, connected: connected)
                 // Stale positions are one old spot: with every position stale nothing is plotted.
                 let spots = notLive == nil ? markerSpots(projection, size: geometry.size, now: now) : [:]
@@ -119,7 +115,7 @@ struct TrackMapView: View {
                     // Track surface: a wide dark kerb outline with a lighter strip inside it.
                     outline.stroke(RacingStyle.trackEdge, style: StrokeStyle(lineWidth: kerbWidth, lineCap: .round, lineJoin: .round))
                     outline.stroke(RacingStyle.trackSurface, style: StrokeStyle(lineWidth: surfaceWidth, lineCap: .round, lineJoin: .round))
-                    startFinish(track, projection)
+                    startFinish(drawing)
                     ForEach(snapshot.drivers) { driver in
                         if let location = driver.location, let point = spots[driver.number] {
                             marker(driver, location, at: point, now: now)
@@ -144,6 +140,8 @@ struct TrackMapView: View {
             } else {
                 ContentUnavailableView("Track layout unavailable", systemImage: "map")
             }
+            }
+            .task(id: key) { drawing = TrackDrawing(key: key) }
         }
     }
 
@@ -165,12 +163,10 @@ struct TrackMapView: View {
     }
 
     /// A chequered tick across the track at the first point of the lap, turned to face the direction of travel.
-    @ViewBuilder private func startFinish(_ track: TrackLayout, _ projection: TrackProjection) -> some View {
-        let mapped = track.points.compactMap { projection.project(x: $0.x, y: $0.y) }
-        if let start = mapped.first,
-           let ahead = mapped.dropFirst().first(where: { hypot($0.x - start.x, $0.y - start.y) >= 6 }) {
+    @ViewBuilder private func startFinish(_ drawing: TrackDrawing) -> some View {
+        if let start = drawing.start, let angle = drawing.startAngle {
             ChequeredTick()
-                .rotationEffect(.radians(atan2(ahead.y - start.y, ahead.x - start.x)))
+                .rotationEffect(.radians(angle))
                 .position(x: start.x, y: start.y)
                 .accessibilityHidden(true)
         }
@@ -240,6 +236,39 @@ struct TrackMapView: View {
         } else {
             Text(snapshot.locationSummary(at: now))
                 .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+        }
+    }
+}
+
+/// Cached static geometry, rebuilt only when the circuit or viewport changes.
+private struct TrackDrawing {
+    struct Key: Equatable {
+        let track: TrackLayout
+        let size: CGSize
+    }
+    let key: Key
+    let projection: TrackProjection?
+    let outline: Path
+    let start: TrackPoint?
+    let startAngle: Double?
+
+    init(key: Key) {
+        self.key = key
+        let projection = key.track.projection(width: key.size.width, height: key.size.height)
+        self.projection = projection
+        let mapped = key.track.points.compactMap { projection?.project(x: $0.x, y: $0.y) }
+        outline = Path { path in
+            for (index, point) in mapped.enumerated() {
+                let position = CGPoint(x: point.x, y: point.y)
+                if index == 0 { path.move(to: position) } else { path.addLine(to: position) }
+            }
+        }
+        start = mapped.first
+        if let start = mapped.first,
+           let ahead = mapped.dropFirst().first(where: { hypot($0.x - start.x, $0.y - start.y) >= 6 }) {
+            startAngle = atan2(ahead.y - start.y, ahead.x - start.x)
+        } else {
+            startAngle = nil
         }
     }
 }
