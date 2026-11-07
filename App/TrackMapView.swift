@@ -23,7 +23,7 @@ struct TrackMapView: View {
                     .font(.caption.bold()).foregroundStyle(snapshot.mode == "demo" ? .orange : .secondary)
                 if let track = snapshot.track {
                     map(track, now: context.date).frame(height: 340)
-                    Text(track.source).font(.caption).foregroundStyle(.secondary)
+                    Text(track.source).font(.caption).foregroundStyle(RacingStyle.textSecondary)
                 } else {
                     ContentUnavailableView("Waiting for track layout", systemImage: "map",
                         description: Text("The circuit outline appears after a complete timed lap is available. Driver locations require a backend with track support."))
@@ -31,7 +31,7 @@ struct TrackMapView: View {
                 }
                 legend(now: context.date)
                 Text("Approximate positions · Dimmed markers are over 10 seconds old. Drivers without coordinates are listed as unavailable.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(RacingStyle.textSecondary)
             }
             .racingCard()
         }
@@ -91,7 +91,7 @@ struct TrackMapView: View {
                     Circle().fill(Color.team(driver.color)).frame(width: 8, height: 8)
                     Text("\(driver.number) \(driver.acronym)").fontWeight(.semibold)
                     Text(driver.location.map { $0.isStale(at: now) ? "Stale" : "Located" } ?? "Unavailable")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(RacingStyle.textSecondary)
                 }.font(.caption).accessibilityElement(children: .combine)
             }
         }

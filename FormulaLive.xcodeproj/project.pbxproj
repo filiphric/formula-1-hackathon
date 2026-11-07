@@ -13,9 +13,11 @@
 		54167C421B60FEB51DE7C0FC /* RaceSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */; };
 		7B78516057A02DB110E15BAA /* TimingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */; };
 		8B1A9B113EA53A1525154CB6 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8C4CA2E5D921E732A18AA764 /* Foundation.framework */; };
+		8EDC6159BF53A800EFC95FB4 /* RaceControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C74E3DF0340764C93B2C4A /* RaceControl.swift */; };
 		972BEB3745BDDB355888A1C2 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */; };
 		AF45B95BA68031D19688E706 /* FormulaLiveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */; };
 		C1368FF46609889F56604AD3 /* TrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED500EE61E80AF8A96A69188 /* TrackMapView.swift */; };
+		D309FEA7D841C41E3025C505 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88EBBFAD212F95C10C4871C /* DesignTokens.swift */; };
 		ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */; };
 /* End PBXBuildFile section */
 
@@ -24,12 +26,14 @@
 		0BB4009AC0DE0B45929ED0A0 /* DashboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DashboardView.swift; path = App/DashboardView.swift; sourceTree = "<group>"; };
 		140DF3FF88A5944BC0EECEF2 /* FormulaLive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FormulaLive.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7192FDEA907E8CD17CD69603 /* TimingSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingSnapshot.swift; path = Core/TimingSnapshot.swift; sourceTree = "<group>"; };
+		86C74E3DF0340764C93B2C4A /* RaceControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RaceControl.swift; path = Core/RaceControl.swift; sourceTree = "<group>"; };
 		8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FormulaLiveApp.swift; path = App/FormulaLiveApp.swift; sourceTree = "<group>"; };
 		8C4CA2E5D921E732A18AA764 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS14.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleStore.swift; path = App/ScheduleStore.swift; sourceTree = "<group>"; };
 		C52DC1B43702D0F2845E2198 /* RacingStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RacingStyle.swift; path = App/RacingStyle.swift; sourceTree = "<group>"; };
 		C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingStore.swift; path = App/TimingStore.swift; sourceTree = "<group>"; };
 		DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleView.swift; path = App/ScheduleView.swift; sourceTree = "<group>"; };
+		E88EBBFAD212F95C10C4871C /* DesignTokens.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesignTokens.swift; path = Core/DesignTokens.swift; sourceTree = "<group>"; };
 		ED500EE61E80AF8A96A69188 /* TrackMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackMapView.swift; path = App/TrackMapView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -81,6 +85,8 @@
 				0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */,
 				ED500EE61E80AF8A96A69188 /* TrackMapView.swift */,
 				C52DC1B43702D0F2845E2198 /* RacingStyle.swift */,
+				E88EBBFAD212F95C10C4871C /* DesignTokens.swift */,
+				86C74E3DF0340764C93B2C4A /* RaceControl.swift */,
 			);
 			name = Sources;
 			sourceTree = "<group>";
@@ -166,6 +172,8 @@
 				54167C421B60FEB51DE7C0FC /* RaceSchedule.swift in Sources */,
 				C1368FF46609889F56604AD3 /* TrackMapView.swift in Sources */,
 				5164AE09974158E71F0128E3 /* RacingStyle.swift in Sources */,
+				D309FEA7D841C41E3025C505 /* DesignTokens.swift in Sources */,
+				8EDC6159BF53A800EFC95FB4 /* RaceControl.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

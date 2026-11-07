@@ -22,7 +22,7 @@ private struct RootView: View {
             ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))
                 .tabItem { Label("Schedule", systemImage: "calendar") }
         }
-        .tint(RacingStyle.red)
+        .tint(RacingStyle.accentText)
         #if os(macOS)
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(spacing: 12) {
@@ -31,7 +31,7 @@ private struct RootView: View {
                 Spacer()
                 ViewThatFits(in: .horizontal) {
                     Text("RACE WEEKEND COMPANION").font(.caption2.bold()).tracking(1.5)
-                        .foregroundStyle(.secondary).fixedSize()
+                        .foregroundStyle(RacingStyle.textSecondary).fixedSize()
                     Color.clear.frame(width: 0, height: 0)
                 }
             }
