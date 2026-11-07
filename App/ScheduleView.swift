@@ -92,7 +92,8 @@ struct ScheduleView: View {
 
     private var seasonControls: some View {
         HStack(spacing: RacingStyle.Space.s) {
-            Image(systemName: "calendar").accessibilityHidden(true)
+            Image(systemName: "calendar")
+                .accessibilityLabel("Calendar").accessibilityAddTraits(.isHeader)
             Picker("Season", selection: $season) {
                 ForEach(Array((2023...max(2023, currentYear + 1)).reversed()), id: \.self) { year in
                     Text(String(year)).tag(year)

@@ -20,12 +20,18 @@ struct TrackMapView: View {
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 ViewThatFits(in: .horizontal) {
                     HStack {
-                        Label("Approximate positions", systemImage: "location").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                        Label("Approximate positions", systemImage: "location")
+                            .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                            .accessibilityLabel("Driver tracker. Approximate positions")
+                            .accessibilityAddTraits(.isHeader)
                         Spacer()
                         driverPicker(disabled: notLive)
                     }
                     VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-                        Label("Approximate positions", systemImage: "location").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                        Label("Approximate positions", systemImage: "location")
+                            .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                            .accessibilityLabel("Driver tracker. Approximate positions")
+                            .accessibilityAddTraits(.isHeader)
                         driverPicker(disabled: notLive)
                     }
                 }
