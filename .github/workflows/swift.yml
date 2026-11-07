@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify generated project branding
         run: |
-          gem install xcodeproj --version 1.25.0 --no-document
+          gem install xcodeproj --version 1.25.0 --user-install --no-document
           ruby Scripts/test-generate-project.rb
       - name: Test shared models
         run: swift test
