@@ -62,6 +62,25 @@ private func trackSnapshot(mode: String = "live", upstream: String = "connected"
     #expect(try trackSnapshot().trackStatus(at: stale, connected: true) == "Stale · No recent driver locations")
 }
 
+// A 90° CCW telemetry rotation sends east to north (up on screen),
+// and turns a 2:1 bounding box into 1:2. These expectations follow the
+// requested shared circuit orientation, independent of projection internals.
+@Test func rotatesOutlineAndCarsBeforeFittingTheViewport() throws {
+    let track = try JSONDecoder().decode(TrackLayout.self, from: Data(#"{"source":"test","rotationDegrees":90,"points":[{"x":0,"y":0},{"x":200,"y":0},{"x":200,"y":100},{"x":0,"y":100}]}"#.utf8))
+    #expect(abs(try #require(track.aspectRatio) - 0.5) < 0.00001)
+    let projection = try #require(track.projection(width: 300, height: 400))
+    let start = try #require(projection.project(x: 0, y: 0))
+    let east = try #require(projection.project(x: 200, y: 0))
+    #expect(abs(start.x - east.x) < 0.00001)
+    #expect(east.y < start.y)
+    #expect(abs(east.y - 32) < 0.00001)
+    #expect(abs(start.y - 368) < 0.00001)
+    let north = try #require(projection.project(x: 0, y: 100))
+    #expect(north.x < start.x)
+    let legacy = try #require(try trackSnapshot().track)
+    #expect(legacy.rotationDegrees == nil)
+}
+
 // P-92: a one-second update from x=0 to x=100 must show x=50 halfway,
 // then stop at x=100; it must never invent motion after the last sample.
 @Test func driverMotionIsContinuousBoundedAndRetargetsWithoutJumping() throws {
