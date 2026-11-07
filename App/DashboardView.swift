@@ -62,6 +62,9 @@ struct DashboardView: View {
 
     private func timingBoard(_ snapshot: TimingSnapshot, fillsHeight: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+            Image(systemName: "list.number")
+                .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                .accessibilityLabel("Leaderboard").accessibilityAddTraits(.isHeader)
             if snapshot.drivers.isEmpty {
                 Text("Waiting for driver data…").font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
             }
@@ -71,7 +74,6 @@ struct DashboardView: View {
         .racingCard()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Leaderboard")
-        .accessibilityAddTraits(.isHeader)
     }
 
     private func raceControl(_ snapshot: TimingSnapshot) -> some View {
