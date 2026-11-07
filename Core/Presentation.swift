@@ -370,11 +370,12 @@ public struct DriverMotion: Sendable {
     public mutating func receive(_ location: DriverLocation, at now: Date, animated: Bool = true) {
         guard let timestamp = location.timestamp,
               location.x.isFinite, location.y.isFinite else { return }
-        if let old = target?.timestamp, timestamp <= old { return }
+        if location == target { return }
+        if let old = target?.timestamp, timestamp < old { return }
         let previous = point(at: now)
         let gap = target?.timestamp.map { timestamp.timeIntervalSince($0) }
         from = previous
-        duration = animated && !location.isStale(at: now) && previous != nil
+        duration = animated && !location.isStale(at: now) && target?.isStale(at: now) == false && previous != nil
             && gap.map { $0 > 0 && $0 <= 3 } == true ? min(gap ?? 1, 1) : 0
         target = location
         started = now
