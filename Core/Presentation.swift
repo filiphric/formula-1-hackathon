@@ -321,8 +321,10 @@ extension TrackLayout {
 }
 
 /// Keeps overlapping driver markers legible. Markers keep their place unless one would sit
-/// closer than `minDistance` to a marker already placed; then it moves to the nearest free
-/// spot on an expanding ring. Deterministic: the same input order always gives the same output.
+/// closer than `minDistance` to a marker already placed; then it slides directly away from the
+/// nearest one until exactly `minDistance` apart, so a marker that closes in on another is drawn
+/// moving smoothly rather than snapping. Only if that spot is also taken (a crowd) does it move to
+/// the nearest free spot on an expanding ring. Deterministic: the same input order always gives the same output.
 public enum MarkerSpread {
     public static func separated(_ points: [TrackPoint], minDistance: Double, bounds: MarkerLabelPlacement.Rect? = nil) -> [TrackPoint] {
         var placed: [TrackPoint] = []
@@ -331,9 +333,25 @@ public enum MarkerSpread {
                 placed.append(point)
                 continue
             }
-            placed.append(freeSpot(near: point, among: placed, minDistance: minDistance, bounds: bounds) ?? point)
+            placed.append(slidApart(point, among: placed, minDistance: minDistance, bounds: bounds)
+                          ?? freeSpot(near: point, among: placed, minDistance: minDistance, bounds: bounds) ?? point)
         }
         return placed
+    }
+
+    /// The point on the line from the nearest placed marker through `point`, exactly `minDistance` from that
+    /// marker, when nothing else occupies it. Coincident points slide in a fixed direction.
+    private static func slidApart(_ point: TrackPoint, among placed: [TrackPoint], minDistance: Double,
+                                  bounds: MarkerLabelPlacement.Rect?) -> TrackPoint? {
+        guard let nearest = placed.min(by: { hypot($0.x - point.x, $0.y - point.y) < hypot($1.x - point.x, $1.y - point.y) })
+        else { return nil }
+        let dx = point.x - nearest.x, dy = point.y - nearest.y
+        let length = hypot(dx, dy)
+        let (ux, uy) = length > 1e-9 ? (dx / length, dy / length) : (1.0, 0.0)
+        let candidate = TrackPoint(x: nearest.x + ux * minDistance, y: nearest.y + uy * minDistance)
+        if let bounds, candidate.x < bounds.x || candidate.x > bounds.maxX
+            || candidate.y < bounds.y || candidate.y > bounds.maxY { return nil }
+        return isFree(candidate, among: placed, minDistance: minDistance) ? candidate : nil
     }
 
     private static func isFree(_ point: TrackPoint, among placed: [TrackPoint], minDistance: Double) -> Bool {
