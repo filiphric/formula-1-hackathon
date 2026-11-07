@@ -7,7 +7,7 @@ struct ScheduleView: View {
     @State private var filter = "All"
     @State private var refresh = 0
     private let currentYear = Calendar.current.component(.year, from: .now)
-    private let accent = Color(red: 1, green: 0.22, blue: 0.18)
+    private let accent = RacingStyle.red
 
     var body: some View {
         NavigationStack {
@@ -22,7 +22,8 @@ struct ScheduleView: View {
                             }
                         }.labelsHidden().fixedSize()
                     }
-                    Text("Every weekend.\nYour local time.").font(.largeTitle.bold())
+                    Text("THE RACE CALENDAR").font(.system(.largeTitle, design: .rounded, weight: .black))
+                    Text("Every weekend. Your local time.").font(.title3).foregroundStyle(.secondary)
                     Label("Times in \(TimeZone.autoupdatingCurrent.identifier)", systemImage: "globe")
                         .font(.callout).foregroundStyle(.secondary)
                     Picker("Show races", selection: $filter) {
@@ -41,7 +42,7 @@ struct ScheduleView: View {
                     }
                 }.padding(24).frame(maxWidth: 900).frame(maxWidth: .infinity)
             }
-            .background(Color(red: 0.045, green: 0.05, blue: 0.065))
+            .background(RacingStyle.background)
             .navigationTitle("Schedule")
             .toolbar {
                 Button("Refresh", systemImage: "arrow.clockwise") { refresh += 1 }.disabled(store.loading)
@@ -119,12 +120,20 @@ private struct WeekendCard: View {
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("ROUND \(race.round) · \(race.country.uppercased())").font(.caption.bold())
+                    Text(String(format: "%02d", race.round))
+                        .font(.system(.title, design: .rounded, weight: .black).italic())
+                        .foregroundStyle(next ? RacingStyle.red : .white)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("ROUND \(race.round)").font(.caption2.bold()).foregroundStyle(.secondary)
+                        Text(race.country.uppercased()).font(.caption.bold()).tracking(1)
+                    }
                     Spacer()
                     Text(race.isPast(at: now) ? "PAST" : next ? "NEXT RACE" : "UPCOMING")
-                        .font(.caption.bold()).foregroundStyle(next ? .red : .secondary)
+                        .font(.caption2.bold()).foregroundStyle(next ? .white : .secondary)
+                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .background(next ? RacingStyle.red : .white.opacity(0.06), in: Capsule())
                 }
-                Text(race.name).font(.title2.bold())
+                Text(race.name).font(RacingStyle.heading)
                 Text(race.circuit).font(.subheadline).foregroundStyle(.secondary)
                 if let first = race.sessions.first, let last = race.sessions.last {
                     Label("\(first.localDate()) – \(last.localDate())", systemImage: "calendar")
@@ -133,9 +142,13 @@ private struct WeekendCard: View {
             }.padding(.trailing, 8)
         }
         .tint(.white)
-        .padding(20)
-        .background(.white.opacity(next ? 0.08 : 0.035), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(next ? .red.opacity(0.7) : .clear))
+        .racingCard()
+        .overlay(alignment: .top) {
+            if next {
+                UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12)
+                    .fill(RacingStyle.red).frame(height: 3)
+            }
+        }
         .onAppear { if next { expanded = true } }
     }
 }

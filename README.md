@@ -20,6 +20,16 @@ iOS Simulator, then Run. The default server is `ws://localhost:8787/live`.
 Demo is explicitly labelled and uses four fictional sample timing rows; it does not
 contact OpenF1 or replay a real race.
 
+## Race weekend design
+
+The native interface uses the official F1 app as visual reference: dark panels,
+red accents, bold rounded headings, a striped race header and compact timing rows.
+The leaderboard and driver tracker sit side by side in wide windows and stack on
+phones and narrow windows. The calendar uses the same cards with numbered rounds
+and a red next-race marker. Tyres show standard colored S/M/H/I/W rings, with `?`
+for missing or unrecognized compounds and spoken labels for accessibility.
+Demo, connection and stale-data labels remain visible; this is an unofficial companion.
+
 ## Live track view
 
 The **On track** card in Live timing plots numbered, team-colored driver markers on

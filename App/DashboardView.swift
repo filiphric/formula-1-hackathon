@@ -5,7 +5,7 @@ struct DashboardView: View {
     @AppStorage("serverEndpoint") private var endpoint = "ws://localhost:8787/live"
     @State private var activeEndpoint = ""
     @State private var showingSettings = false
-    private let accent = Color(red: 1, green: 0.22, blue: 0.18)
+    private let accent = RacingStyle.red
 
     var body: some View {
         NavigationStack {
@@ -17,8 +17,16 @@ struct DashboardView: View {
                             .font(.callout).foregroundStyle(.orange)
                     }
                     if let snapshot = store.snapshot {
-                        TrackMapView(snapshot: snapshot, connected: store.connected)
-                        timingBoard(snapshot)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: 20) {
+                                timingBoard(snapshot).frame(width: 390)
+                                TrackMapView(snapshot: snapshot, connected: store.connected).frame(minWidth: 420)
+                            }
+                            VStack(spacing: 20) {
+                                timingBoard(snapshot)
+                                TrackMapView(snapshot: snapshot, connected: store.connected)
+                            }
+                        }
                         raceControl(snapshot)
                     } else {
                         ContentUnavailableView(
@@ -32,8 +40,8 @@ struct DashboardView: View {
                 }.padding(24).frame(maxWidth: 1200)
                     .frame(maxWidth: .infinity)
             }
-            .background(Color(red: 0.045, green: 0.05, blue: 0.065))
-            .navigationTitle("Formula Live")
+            .background(RacingStyle.background)
+            .navigationTitle("Race centre")
             .toolbar {
                 Button("Connection", systemImage: "network") { showingSettings = true }
             }
@@ -62,16 +70,18 @@ struct DashboardView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("RACE CENTRE").font(.caption.bold()).tracking(3).foregroundStyle(accent)
+                Label("RACE CENTRE", systemImage: "flag.checkered").font(.caption.bold()).tracking(2).foregroundStyle(.white)
                 Spacer()
                 Label(store.snapshot?.mode == "demo" ? "DEMO" : store.status,
                       systemImage: store.connected ? "circle.fill" : "circle")
-                    .font(.caption.bold()).foregroundStyle(store.connected ? .green : .secondary)
+                    .font(.caption.bold()).foregroundStyle(store.snapshot?.mode == "demo" ? .orange : store.connected ? .green : .secondary)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.black.opacity(0.25), in: Capsule())
             }
             Text(store.snapshot?.session?.circuit ?? "Ready for lights out")
-                .font(.largeTitle.bold())
+                .font(.system(.largeTitle, design: .rounded, weight: .black))
             HStack {
                 Text(store.snapshot?.session?.name ?? "Live timing for macOS and iOS")
                 Spacer()
@@ -91,11 +101,26 @@ struct DashboardView: View {
                 }
             }
         }
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(LinearGradient(colors: [Color(red: 0.55, green: 0.02, blue: 0.02), RacingStyle.surface], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay { RacingStripes().clipShape(RoundedRectangle(cornerRadius: 12)) }
+        }
+        .overlay(alignment: .leading) { UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 12).fill(accent).frame(width: 4) }
     }
 
     private func timingBoard(_ snapshot: TimingSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Timing board").font(.title3.bold())
+            RacingSectionTitle(title: "Leaderboard", subtitle: "Position / driver / gap / last lap")
+            HStack {
+                Text("POS").frame(width: 30)
+                Text("DRIVER")
+                Spacer()
+                Text("GAP / LAP")
+                Text("TYRE").padding(.leading, 6)
+            }.font(.system(.caption2, weight: .bold)).foregroundStyle(.secondary)
             if snapshot.drivers.isEmpty {
                 Text("Waiting for driver data…").foregroundStyle(.secondary)
             }
@@ -106,7 +131,7 @@ struct DashboardView: View {
                     RoundedRectangle(cornerRadius: 2).fill(Color.team(driver.color))
                         .frame(width: 4, height: 34)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(driver.acronym).font(.headline)
+                        Text(driver.acronym).font(.system(.headline, design: .rounded, weight: .heavy))
                         Text(driver.team).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 8)
@@ -115,29 +140,28 @@ struct DashboardView: View {
                             .font(.subheadline.monospacedDigit())
                         Text(driver.formattedLap).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    Text(driver.compound.map { String($0.prefix(1)) } ?? "—")
-                        .font(.caption.bold()).frame(width: 24, height: 24)
-                        .background(.white.opacity(0.08), in: Circle())
-                        .accessibilityLabel(driver.compound ?? "Tyre unknown")
+                    TyreBadge(compound: TyreCompound(driver.compound))
                 }
                 .accessibilityElement(children: .combine)
                 if driver.id != snapshot.drivers.last?.id { Divider().opacity(0.4) }
             }
-        }.padding(20).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16))
+        }.racingCard()
     }
 
     private func raceControl(_ snapshot: TimingSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("Race control", systemImage: "flag").font(.title3.bold())
+            RacingSectionTitle(title: "Race control", subtitle: "Latest messages from the session")
             if snapshot.messages.isEmpty {
                 Text("No race-control messages yet.").foregroundStyle(.secondary)
             }
             ForEach(snapshot.messages.prefix(10)) { message in
-                Text(message.message).font(.callout)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12).background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "flag.fill").foregroundStyle(.secondary).padding(.top, 2)
+                    Text(message.message).font(.callout)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.padding(14).background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
             }
-        }
+        }.racingCard()
     }
 
 }

@@ -124,3 +124,42 @@ extension TimingSnapshot {
         return "LIVE · Driver locations"
     }
 }
+
+/// Presentation semantics for the standard tyre markings; unknown data must not
+/// masquerade as a known compound just because its first letter matches.
+public enum TyreCompound: Sendable {
+    case soft, medium, hard, intermediate, wet, unknown
+
+    public init(_ value: String?) {
+        switch value?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "SOFT": self = .soft
+        case "MEDIUM": self = .medium
+        case "HARD": self = .hard
+        case "INTERMEDIATE": self = .intermediate
+        case "WET": self = .wet
+        default: self = .unknown
+        }
+    }
+
+    public var symbol: String {
+        switch self {
+        case .soft: "S"
+        case .medium: "M"
+        case .hard: "H"
+        case .intermediate: "I"
+        case .wet: "W"
+        case .unknown: "?"
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .soft: "Soft tyre"
+        case .medium: "Medium tyre"
+        case .hard: "Hard tyre"
+        case .intermediate: "Intermediate tyre"
+        case .wet: "Wet tyre"
+        case .unknown: "Tyre unknown"
+        }
+    }
+}

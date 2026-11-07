@@ -8,16 +8,16 @@ struct TrackMapView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label("On track", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                        .font(.title3.bold())
-                    Spacer()
-                    Picker("Follow driver", selection: $selectedDriver) {
-                        Text("All drivers").tag(Int?.none)
-                        ForEach(snapshot.drivers) { driver in
-                            Text("\(driver.number) · \(driver.acronym)").tag(Optional(driver.number))
-                        }
-                    }.fixedSize()
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        RacingSectionTitle(title: "Driver tracker", subtitle: "On track · Approximate positions")
+                        Spacer()
+                        driverPicker
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        RacingSectionTitle(title: "Driver tracker", subtitle: "On track · Approximate positions")
+                        driverPicker
+                    }
                 }
                 Text(snapshot.trackStatus(at: context.date, connected: connected))
                     .font(.caption.bold()).foregroundStyle(snapshot.mode == "demo" ? .orange : .secondary)
@@ -33,15 +33,25 @@ struct TrackMapView: View {
                 Text("Approximate positions · Dimmed markers are over 10 seconds old. Drivers without coordinates are listed as unavailable.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            .padding(20).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16))
+            .racingCard()
         }
         .onChange(of: snapshot.session?.start) { selectedDriver = nil }
+    }
+
+    private var driverPicker: some View {
+        Picker("Follow driver", selection: $selectedDriver) {
+            Text("All drivers").tag(Int?.none)
+            ForEach(snapshot.drivers) { driver in
+                Text("\(driver.number) · \(driver.acronym)").tag(Optional(driver.number))
+            }
+        }.fixedSize()
     }
 
     private func map(_ track: TrackLayout, now: Date) -> some View {
         GeometryReader { geometry in
             if let projection = track.projection(width: geometry.size.width, height: geometry.size.height) {
                 ZStack {
+                    RacingStripes().opacity(0.6)
                     Path { path in
                         for (index, point) in track.points.enumerated() {
                             if let mapped = projection.project(x: point.x, y: point.y) {

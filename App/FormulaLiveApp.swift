@@ -21,6 +21,19 @@ private struct RootView: View {
             DashboardView().tabItem { Label("Live timing", systemImage: "flag.checkered") }
             ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))
                 .tabItem { Label("Schedule", systemImage: "calendar") }
-        }.tint(.red)
+        }
+        .tint(RacingStyle.red)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "flag.checkered").font(.title2.bold()).foregroundStyle(RacingStyle.red)
+                Text("FORMULA LIVE").font(.system(.headline, design: .rounded, weight: .black)).italic()
+                Spacer()
+                Text("RACE WEEKEND COMPANION").font(.caption2.bold()).tracking(1.5)
+                    .foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+            }
+            .padding(.horizontal, 24).padding(.vertical, 16)
+            .background(RacingStyle.background.overlay { RacingStripes() })
+            .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
+        }
     }
 }
