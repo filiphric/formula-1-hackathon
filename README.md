@@ -47,6 +47,12 @@ seconds, and the view identifies disconnected, stale, future and ended sessions.
 Drivers without coordinates are listed as unavailable. Fresh coordinates can keep
 an extended session live past its scheduled end.
 
+Circuit orientation uses the circuit/year rotation from the public MultiViewer API,
+as referenced by OpenF1 and FastF1. The backend sends optional `rotationDegrees`;
+the app rotates the outline, cars and start/finish together before fitting the map.
+Older servers and metadata outages show “Orientation unverified · Raw telemetry”;
+missing metadata retries on the next track refresh. Demo geometry stays fictional.
+
 The outline is a completed, non-out-lap location trace from the current session,
 with at most 600 points. Up to three recent laps are tried if a trace is sparse. It appears once a sufficiently complete timed lap is
 available and retries every minute while unavailable. Coordinates are approximate,
