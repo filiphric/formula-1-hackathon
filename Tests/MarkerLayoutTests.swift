@@ -125,3 +125,28 @@ private func easedCar() throws -> (drivers: [TimingDriver], motions: [Int: Drive
     let newest = epoch.addingTimeInterval(1.081)
     #expect(MotionActivity.isActive(lastReceived: newest, now: epoch.addingTimeInterval(1.082)))
 }
+
+// A marker that closes in on another one smoothly must be drawn moving smoothly: stepping a true position
+// by 0.25 point may move the drawn marker by at most 0.25 point, never snap it a whole marker away.
+@Test func aMarkerApproachingAnotherSlidesApartInsteadOfJumping() {
+    let minDistance = 28.0
+    let fixed = TrackPoint(x: 100, y: 100)
+    for angle in stride(from: 0.0, to: 2 * Double.pi, by: Double.pi / 6) {
+        var previous: TrackPoint?
+        var step = 0
+        while true {
+            let distance = 60 - 0.25 * Double(step)          // 60 point away, closing to 10 points
+            if distance < 10 { break }
+            let moving = TrackPoint(x: 100 + distance * cos(angle), y: 100 + distance * sin(angle))
+            let drawn = MarkerSpread.separated([fixed, moving], minDistance: minDistance)
+            #expect(drawn[0] == fixed)
+            #expect(hypot(drawn[1].x - fixed.x, drawn[1].y - fixed.y) >= minDistance - 1e-9)
+            if let previous {
+                #expect(hypot(drawn[1].x - previous.x, drawn[1].y - previous.y) <= 0.25 + 1e-9,
+                        "marker jumped at distance \(distance), angle \(angle)")
+            }
+            previous = drawn[1]
+            step += 1
+        }
+    }
+}

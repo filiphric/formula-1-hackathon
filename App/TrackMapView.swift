@@ -21,8 +21,8 @@ struct TrackMapView: View {
 
     var body: some View {
         // The card chrome (titles, picker, captions, track, footer) only needs the clock for its staleness
-        // wording, so it updates about once a second. Only the markers layer runs at the display rate.
-        TimelineView(.animation(minimumInterval: 1)) { context in
+        // wording, so it follows a plain wall clock, once a second. Only the markers layer runs at the display rate.
+        TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 1)) { context in
             let notLive = snapshot.allPositionsStale(at: context.date)
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 ViewThatFits(in: .horizontal) {
