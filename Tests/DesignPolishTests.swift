@@ -75,10 +75,38 @@ private func gapDriver(_ position: Int, gap: String?) -> TimingDriver {
 }
 
 @Test func withoutGapsEveryLayoutDropsGapAndKeepsLastLap() {
-    #expect(TimingLayout.wide.columns(showingGap: false) == [.position, .driver, .team, .lastLap, .tyre])
-    #expect(TimingLayout.standard.columns(showingGap: false) == [.position, .driver, .lastLap, .tyre])
+    for layout in TimingLayout.allCases {
+        #expect(!layout.columns(showingGap: false).contains(.gap))
+        #expect(layout.columns(showingGap: false).contains(.lastLap))
+    }
     // Compact normally drops LAST LAP; with no gap it is the only timing figure, so it stays.
     #expect(TimingLayout.compact.columns(showingGap: false) == [.position, .driver, .lastLap, .tyre])
+}
+
+// MARK: Team fills the room the GAP column leaves
+
+@Test func withoutGapsTeamShowsWheneverThereIsRoomForIt() {
+    // Requirement: once GAP is dropped, the empty stretch beside the driver code shows the team,
+    // at every width that is not the narrowest.
+    #expect(TimingLayout.wide.columns(showingGap: false) == [.position, .driver, .team, .lastLap, .tyre])
+    #expect(TimingLayout.standard.columns(showingGap: false) == [.position, .driver, .team, .lastLap, .tyre])
+}
+
+@Test func withoutGapsTheNarrowestLayoutStillDropsTeamBeforeScrolling() {
+    #expect(!TimingLayout.compact.columns(showingGap: false).contains(.team))
+}
+
+@Test func withGapsTeamStillDropsAtStandardWidth() {
+    // The existing drop order with a GAP column is untouched.
+    #expect(TimingLayout.standard.columns(showingGap: true) == [.position, .driver, .gap, .lastLap, .tyre])
+    #expect(TimingLayout.compact.columns(showingGap: true) == [.position, .driver, .gap, .tyre])
+}
+
+@Test func onlyTheWidestLayoutNeedsRoomForTheFullTeamName() {
+    // Wide shows the whole name; the layouts below it let the name truncate to fit.
+    #expect(TimingLayout.wide.showsFullTeamName)
+    #expect(!TimingLayout.standard.showsFullTeamName)
+    #expect(!TimingLayout.compact.showsFullTeamName)
 }
 
 @Test func withGapsLayoutsAreUnchanged() {
@@ -257,4 +285,15 @@ private func distance(_ a: TrackPoint, _ b: TrackPoint) -> Double { hypot(a.x - 
     let snapshot = trackSnapshot(locationDates: ["2026-11-06T12:00:00Z", "2026-11-06T13:00:00Z", nil])
     #expect(snapshot.newestPositionAge(at: TrackLayout.parseDate("2026-11-06T14:00:00Z")!) == 3_600)
     #expect(trackSnapshot(locationDates: [nil]).newestPositionAge(at: after) == nil)
+}
+
+// MARK: Round and country eyebrow never wraps a separator onto a new line
+
+@Test func roundEyebrowIsOneLineNormallyAndTwoLinesWithoutSeparatorWhenStacked() {
+    let object: [String: Any] = ["round": 20, "name": "Brazilian Grand Prix", "circuit": "Interlagos", "country": "Brazil",
+                                 "sessions": [["name": "Race", "date": "2026-11-08", "start": "2026-11-08T18:00:00Z"]]]
+    let brazil = try! JSONDecoder().decode(RaceWeekend.self, from: JSONSerialization.data(withJSONObject: object))
+    #expect(brazil.roundLines(stacked: false) == ["Round 20 · Brazil"])
+    #expect(brazil.roundLines(stacked: true) == ["Round 20", "Brazil"])
+    #expect(brazil.roundLines(stacked: true).allSatisfy { !$0.contains("·") && !$0.hasPrefix(" ") })
 }

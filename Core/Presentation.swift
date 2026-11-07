@@ -56,12 +56,17 @@ public enum TimingLayout: CaseIterable, Sendable {
 
     public func shows(_ column: TimingColumn) -> Bool { columns.contains(column) }
 
-    /// The columns to draw. When no gap is worth showing the GAP column is dropped, and LAST LAP
-    /// (now the only timing figure) is kept at every width instead of being the first thing to go.
+    /// Only the widest layout asks for room for the whole team name; below it the name truncates.
+    public var showsFullTeamName: Bool { self == .wide }
+
+    /// The columns to draw. When no gap is worth showing the GAP column is dropped, LAST LAP
+    /// (now the only timing figure) is kept at every width instead of being the first thing to go,
+    /// and the team takes the room GAP left (truncating) at every layout but the narrowest.
     public func columns(showingGap: Bool) -> [TimingColumn] {
         if showingGap { return columns }
         var result = columns.filter { $0 != .gap }
         if !result.contains(.lastLap), let tyre = result.firstIndex(of: .tyre) { result.insert(.lastLap, at: tyre) }
+        if self == .standard, let lastLap = result.firstIndex(of: .lastLap) { result.insert(.team, at: lastLap) }
         return result
     }
 }
@@ -138,6 +143,13 @@ public enum WeekendEmphasis: Sendable, Equatable {
 }
 
 extension RaceWeekend {
+    /// The round and country eyebrow as lines of text: one line "Round 20 · Brazil", or, when `stacked`
+    /// (accessibility text sizes), "Round 20" over "Brazil" with no separator. A separator can then
+    /// never wrap onto the start of a line.
+    public func roundLines(stacked: Bool) -> [String] {
+        stacked ? ["Round \(round)", country] : ["Round \(round) · \(country)"]
+    }
+
     /// When the race itself starts, if the calendar has published a time for it.
     public var raceStart: Date? { sessions.first { $0.name == "Race" }?.startDate }
 
