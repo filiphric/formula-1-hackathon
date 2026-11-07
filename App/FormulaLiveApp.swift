@@ -24,7 +24,9 @@ private struct RootView: View {
     @State private var store = TimingStore()
     @State private var activeEndpoint = ""
     @State private var showingSettings = false
-    @State private var tab = AppTab.live
+    /// `-initialTab Schedule` on the command line opens that tab first; otherwise Live timing.
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var tab = AppTab(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .live
 
     var body: some View {
         // One clock drives the app bar's pill and the session hero, so they can never disagree.
@@ -32,7 +34,7 @@ private struct RootView: View {
             let feed = FeedStatus.resolve(snapshot: store.snapshot, connected: store.connected,
                                           hasError: store.error != nil, now: context.date)
             VStack(spacing: 0) {
-                AppBar(feed: feed, tab: $tab, showSettings: { showingSettings = true })
+                AppBar(feed: feed, tab: $tab, showsTabs: tabsInBar, showSettings: { showingSettings = true })
                 content(feed: feed)
             }
         }
@@ -51,23 +53,33 @@ private struct RootView: View {
         showingSettings = false
     }
 
-    @ViewBuilder private func content(feed: FeedStatus) -> some View {
+    /// Mac and iPad put the tab control in the app bar, so the window has one bar of chrome, not two.
+    /// Phones keep the system bottom tab bar.
+    private var tabsInBar: Bool {
         #if os(macOS)
-        // The tab control lives in the app bar, so the window has one bar of chrome, not two.
-        ZStack {
-            DashboardView(store: store, feed: feed)
-                .opacity(tab == .live ? 1 : 0).allowsHitTesting(tab == .live).accessibilityHidden(tab != .live)
-            ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines))
-                .opacity(tab == .schedule ? 1 : 0).allowsHitTesting(tab == .schedule).accessibilityHidden(tab != .schedule)
-        }
+        true
         #else
-        TabView(selection: $tab) {
-            DashboardView(store: store, feed: feed).tag(AppTab.live)
-                .tabItem { Label(AppTab.live.rawValue, systemImage: AppTab.live.symbol) }
-            ScheduleView(endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)).tag(AppTab.schedule)
-                .tabItem { Label(AppTab.schedule.rawValue, systemImage: AppTab.schedule.symbol) }
-        }
+        sizeClass != .compact
         #endif
+    }
+
+    @ViewBuilder private func content(feed: FeedStatus) -> some View {
+        let scheduleEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if tabsInBar {
+            ZStack {
+                DashboardView(store: store, feed: feed)
+                    .opacity(tab == .live ? 1 : 0).allowsHitTesting(tab == .live).accessibilityHidden(tab != .live)
+                ScheduleView(endpoint: scheduleEndpoint)
+                    .opacity(tab == .schedule ? 1 : 0).allowsHitTesting(tab == .schedule).accessibilityHidden(tab != .schedule)
+            }
+        } else {
+            TabView(selection: $tab) {
+                DashboardView(store: store, feed: feed).tag(AppTab.live)
+                    .tabItem { Label(AppTab.live.rawValue, systemImage: AppTab.live.symbol) }
+                ScheduleView(endpoint: scheduleEndpoint).tag(AppTab.schedule)
+                    .tabItem { Label(AppTab.schedule.rawValue, systemImage: AppTab.schedule.symbol) }
+            }
+        }
     }
 }
 
@@ -76,6 +88,7 @@ private struct RootView: View {
 private struct AppBar: View {
     let feed: FeedStatus
     @Binding var tab: AppTab
+    let showsTabs: Bool
     let showSettings: () -> Void
 
     var body: some View {
@@ -101,11 +114,11 @@ private struct AppBar: View {
                     .lineLimit(1).fixedSize()
                     .accessibilityAddTraits(.isHeader)
             }
-            #if os(macOS)
-            Picker("Section", selection: $tab) {
-                ForEach(AppTab.allCases) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden().fixedSize().padding(.leading, RacingStyle.Space.m)
-            #endif
+            if showsTabs {
+                Picker("Section", selection: $tab) {
+                    ForEach(AppTab.allCases) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.segmented).labelsHidden().fixedSize().padding(.leading, RacingStyle.Space.m)
+            }
             Spacer(minLength: RacingStyle.Space.s)
             FeedStatusPill(status: feed)
             Button(action: showSettings) {

@@ -163,16 +163,23 @@ private struct WeekendCard: View {
             }
             Text(race.name).font(RacingStyle.Typography.display).racingHeading().multilineTextAlignment(.leading)
             Text(race.circuit).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
-            HStack(alignment: .lastTextBaseline) {
-                if let dateRange {
-                    Label(dateRange, systemImage: "calendar").font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: RacingStyle.Space.xs) {
-                    Text("Race start").racingLabel().foregroundStyle(RacingStyle.textSecondary)
-                    Text(race.countdownText(now: now)).font(RacingStyle.Typography.figure)
-                }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .lastTextBaseline) { dates; Spacer(); countdown }
+                VStack(alignment: .leading, spacing: RacingStyle.Space.s) { dates; countdown }
             }
+        }
+    }
+
+    @ViewBuilder private var dates: some View {
+        if let dateRange {
+            Label(dateRange, systemImage: "calendar").font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+        }
+    }
+
+    private var countdown: some View {
+        VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
+            Text("Race start").racingLabel().foregroundStyle(RacingStyle.textSecondary)
+            Text(race.countdownText(now: now)).font(RacingStyle.Typography.figure)
         }
     }
 
