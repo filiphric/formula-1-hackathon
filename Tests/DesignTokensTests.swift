@@ -53,3 +53,10 @@ private let surfaces = [RacingPalette.background, RacingPalette.surface, RacingP
                  RacingPalette.flagBlue, RacingPalette.flagSafetyCar, RacingPalette.flagNeutral]
     for flag in flags { #expect(flag.contrastRatio(with: RacingPalette.raised) >= 3) }
 }
+
+@Test func trackSurfaceStandsOutFromTheCardAndTheKerbOutlineIsDarkerThanTheSurface() {
+    // The circuit is a graphic object: 3:1 against the card it is drawn on.
+    #expect(RacingPalette.trackSurface.contrastRatio(with: RacingPalette.surface) >= 3)
+    #expect(RacingPalette.trackEdge.relativeLuminance < RacingPalette.surface.relativeLuminance)
+    #expect(RacingPalette.trackSurface.relativeLuminance > RacingPalette.trackEdge.relativeLuminance)
+}
