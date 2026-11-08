@@ -34,16 +34,22 @@ public struct RaceSchedule: Codable, Sendable {
     }
 
     public static func endpoint(from timingEndpoint: String, season: Int) -> URL? {
-        guard var components = URLComponents(string: timingEndpoint),
-              let scheme = components.scheme?.lowercased(), ["ws", "wss"].contains(scheme),
-              components.host != nil, components.user == nil, components.password == nil else { return nil }
-        components.scheme = scheme == "wss" ? "https" : "http"
-        let prefix = components.percentEncodedPath.split(separator: "/").dropLast().joined(separator: "/")
-        components.percentEncodedPath = (prefix.isEmpty ? "" : "/" + prefix) + "/schedule/\(season)"
-        components.query = nil
-        components.fragment = nil
-        return components.url
+        backendURL(from: timingEndpoint, route: "schedule/\(season)")
     }
+}
+
+/// The HTTP address of a backend route that sits beside the timing WebSocket, or nil when the
+/// timing address is not a plain ws/wss URL. Credentials, query and fragment are never carried over.
+func backendURL(from timingEndpoint: String, route: String) -> URL? {
+    guard var components = URLComponents(string: timingEndpoint),
+          let scheme = components.scheme?.lowercased(), ["ws", "wss"].contains(scheme),
+          components.host != nil, components.user == nil, components.password == nil else { return nil }
+    components.scheme = scheme == "wss" ? "https" : "http"
+    let prefix = components.percentEncodedPath.split(separator: "/").dropLast().joined(separator: "/")
+    components.percentEncodedPath = (prefix.isEmpty ? "" : "/" + prefix) + "/" + route
+    components.query = nil
+    components.fragment = nil
+    return components.url
 }
 
 public struct RaceWeekend: Codable, Identifiable, Sendable {
@@ -114,4 +120,67 @@ private func parseScheduleDate(_ value: String) -> Date? {
     if let date = parser.date(from: value) { return date }
     parser.formatOptions.insert(.withFractionalSeconds)
     return parser.date(from: value)
+}
+
+/// The classification of one finished race, from `GET /results/{season}/{round}`.
+public struct RaceResults: Codable, Sendable {
+    public let season: Int
+    public let round: Int
+    public let mode: String
+    public let source: String
+    public let fetchedAt: String
+    public let stale: Bool
+    /// Empty while the source has not published the classification yet.
+    public let entries: [ResultEntry]
+
+    public static func endpoint(from timingEndpoint: String, season: Int, round: Int) -> URL? {
+        backendURL(from: timingEndpoint, route: "results/\(season)/\(round)")
+    }
+}
+
+public struct ResultEntry: Codable, Identifiable, Sendable, Equatable {
+    public var id: Int { position }
+    public let position: Int
+    /// "1", "2" ... for classified drivers; "R", "D" or "W" otherwise.
+    public let positionText: String
+    public let code: String?
+    public let name: String
+    public let team: String
+    public let grid: Int?
+    public let laps: Int?
+    public let time: String?
+    public let status: String
+    public let points: Double
+    public let fastestLap: Bool
+
+    public init(position: Int, positionText: String, code: String?, name: String, team: String, grid: Int?, laps: Int?,
+                time: String?, status: String, points: Double, fastestLap: Bool) {
+        self.position = position; self.positionText = positionText; self.code = code; self.name = name
+        self.team = team; self.grid = grid; self.laps = laps; self.time = time; self.status = status
+        self.points = points; self.fastestLap = fastestLap
+    }
+
+    public var isClassified: Bool { Int(positionText) != nil }
+
+    /// Three letters for the driver, from the surname when the source has no code.
+    public var displayCode: String {
+        if let code, !code.isEmpty { return code }
+        return String((name.split(separator: " ").last.map(String.init) ?? name).prefix(3)).uppercased()
+    }
+
+    /// Race time for the winner, gap for the rest, otherwise why the driver has no time ("+1 Lap", "Retired").
+    public var outcome: String { time ?? status }
+
+    /// "25", "12.5", or nil when the driver scored nothing.
+    public var pointsText: String? {
+        guard points > 0 else { return nil }
+        return points == points.rounded() ? String(Int(points)) : String(points)
+    }
+
+    public var spokenSummary: String {
+        var parts = [isClassified ? "Position \(position)" : "Not classified", name, team, outcome]
+        if let pointsText { parts.append("\(pointsText) \(pointsText == "1" ? "point" : "points")") }
+        if fastestLap { parts.append("Fastest lap") }
+        return parts.joined(separator: ", ")
+    }
 }
