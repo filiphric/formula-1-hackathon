@@ -128,8 +128,9 @@ private struct AppBar: View {
                     .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
                     .lineLimit(1).minimumScaleFactor(0.8)
             }
-            // A fixed block, well inside the bar's 48pt minimum, so the disclosure never changes the bar height or the tabs' alignment.
-            .frame(width: 64, height: 34)
+            // Logo (16) + gap (4) + caption (about 18 at the bar's xxxLarge cap) is 38pt. This 40pt block fits that and
+            // stays under the bar's 48pt minimum, so the disclosure never changes the bar height or the tabs' alignment.
+            .frame(width: 64, height: 40)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Unofficial Formula 1 companion")
             .help("Unofficial Formula 1 companion · Powered by OpenF1")
