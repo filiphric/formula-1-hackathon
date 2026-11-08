@@ -82,6 +82,25 @@ async fn demo_health_websocket_contract_and_shutdown() {
         assert_eq!(results["mode"], "demo");
         assert_eq!(results["round"], 1);
         assert_eq!(results["entries"][0]["position"], 1);
+        let standings: serde_json::Value = http
+            .get(format!("http://{address}/standings/2026"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(standings["mode"], "demo");
+        assert_eq!(standings["season"], 2026);
+        assert_eq!(standings["entries"][0]["position"], 1);
+        assert_eq!(
+            http.get(format!("http://{address}/standings/1900"))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            400
+        );
         for path in ["/results/1900/1", "/results/2026/0", "/results/2026/99"] {
             assert_eq!(
                 http.get(format!("http://{address}{path}"))
@@ -116,8 +135,28 @@ async fn demo_health_websocket_contract_and_shutdown() {
             assert_eq!(snapshot.drivers[0].position, Some(1));
             assert_eq!(snapshot.drivers[0].acronym, "NOR");
             assert!(snapshot.messages[0].message.contains("DEMO"));
+            // Demo radio rows have a layout but no audio, so they can never be played as real clips.
+            assert_eq!(snapshot.radios.len(), 3);
+            assert!(snapshot.radios.iter().all(|r| r.recording_url.is_none()));
             let value: serde_json::Value = serde_json::from_str(&payload).unwrap();
             assert!(value["drivers"][0].get("lapTime").is_some());
+            assert!(value["drivers"][0].get("interval").is_some());
+            assert!(value["drivers"][0].get("bestLap").is_some());
+            // Demo gaps agree: the gap to the leader is the sum of the intervals ahead.
+            let gaps: Vec<_> = snapshot.drivers.iter().map(|d| d.gap.as_deref()).collect();
+            let intervals: Vec<_> = snapshot
+                .drivers
+                .iter()
+                .map(|d| d.interval.as_deref())
+                .collect();
+            assert_eq!(gaps, [None, Some("+2.431"), Some("+3.618"), Some("+6.670")]);
+            assert_eq!(
+                intervals,
+                [None, Some("+2.431"), Some("+1.187"), Some("+3.052")]
+            );
+            // The demo's earlier lap was faster than its last one.
+            assert_eq!(snapshot.drivers[0].best_lap, Some(90.512));
+            assert_eq!(snapshot.drivers[0].lap_time, Some(91.312));
             assert!(value.get("updatedAt").is_some());
         }
         shutdown.send(true).unwrap();

@@ -224,8 +224,8 @@ to the internet.
 - `Core/` — Codable/Sendable timing models, also available as a Swift package.
 - `Backend/` — Rust server: Tokio, Axum HTTP/WebSockets, rumqttc MQTT/TLS, and reqwest REST.
 - `Tests/` — Swift decoding/formatting tests.
-- `Scripts/generate-marshal-sectors.py` — regenerates the marshal sector starts from public MultiViewer
-  data (needs network access).
+- `Scripts/generate-circuit-shapes.py`, `Scripts/generate-marshal-sectors.py` — regenerate the calendar
+  outlines and the marshal sector starts from public MultiViewer data (need network access).
 - `Scripts/generate-project.rb` — optional Xcode project regeneration (Ruby `xcodeproj` gem).
   The generated project is checked in; regeneration is not needed to build.
 
@@ -243,7 +243,7 @@ xcodebuild -project FormulaLive.xcodeproj -scheme FormulaLive \
 ```
 
 The backend tests cover out-of-order events, session isolation, mixed interval
-values, lap corrections and bounded race-control history. Integration tests start
+values, lap corrections, bounded race-control history and the flag rules above. Integration tests start
 the Rust demo server and validate its health endpoint, WebSocket snapshots and graceful
 shutdown. Authentication tests use a local mock upstream to verify credential encoding,
 bearer headers, token caching and renewal.

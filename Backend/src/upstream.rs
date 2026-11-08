@@ -192,7 +192,7 @@ fn mqtt_options(username: &str, token: &str) -> MqttOptions {
     options
 }
 
-fn timing_subscriptions() -> [SubscribeFilter; 7] {
+fn timing_subscriptions() -> [SubscribeFilter; 8] {
     TOPICS.map(|topic| SubscribeFilter::new(format!("v1/{topic}"), QoS::AtMostOnce))
 }
 
@@ -698,10 +698,15 @@ mod tests {
     #[test]
     fn optional_location_refusal_keeps_timing_subscriptions_usable() {
         use rumqttc::{SubAck, SubscribeReasonCode};
-        let mut ack = SubAck::new(1, vec![SubscribeReasonCode::Success(QoS::AtMostOnce); 7]);
+        let mut ack = SubAck::new(1, vec![SubscribeReasonCode::Success(QoS::AtMostOnce); 8]);
         assert!(verify_subscription(&ack).unwrap());
-        ack.return_codes[6] = SubscribeReasonCode::Failure;
+        ack.return_codes[7] = SubscribeReasonCode::Failure;
         assert!(!verify_subscription(&ack).unwrap());
+        // Location is the only optional topic; a refused radio topic is a hard failure.
+        ack.return_codes[7] = SubscribeReasonCode::Success(QoS::AtMostOnce);
+        ack.return_codes[6] = SubscribeReasonCode::Failure;
+        assert!(verify_subscription(&ack).is_err());
+        ack.return_codes[6] = SubscribeReasonCode::Success(QoS::AtMostOnce);
         ack.return_codes[2] = SubscribeReasonCode::Failure;
         assert!(verify_subscription(&ack).is_err());
         ack.return_codes.truncate(5);
@@ -782,11 +787,11 @@ mod tests {
             (header, bytes)
         }
 
-        // Seven grants succeed; a refusal or an incomplete acknowledgement must fail.
+        // Eight grants succeed; a refusal or an incomplete acknowledgement must fail.
         for (grants, expected_success) in [
-            (vec![0; 7], true),
-            (vec![0, 0, 0, 0, 0, 0, 128], false),
-            (vec![0; 6], false),
+            (vec![0; 8], true),
+            (vec![0, 0, 0, 0, 0, 0, 0, 128], false),
+            (vec![0; 7], false),
         ] {
             let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
             let port = listener.local_addr().unwrap().port();
@@ -818,6 +823,7 @@ mod tests {
                         "v1/laps",
                         "v1/stints",
                         "v1/race_control",
+                        "v1/team_radio",
                         "v1/location"
                     ]
                 );

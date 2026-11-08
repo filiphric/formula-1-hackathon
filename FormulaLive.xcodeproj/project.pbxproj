@@ -7,138 +7,165 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		25F3BF3448627006D20C70A7 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB4009AC0DE0B45929ED0A0 /* DashboardView.swift */; };
-		2BD0ACD880067E69075F13EE /* ServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE61960612C66304F9AD7DA7 /* ServerConnection.swift */; };
-		4F74F5041D4934ACD47744AA /* TimingSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7192FDEA907E8CD17CD69603 /* TimingSnapshot.swift */; };
-		5164AE09974158E71F0128E3 /* RacingStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52DC1B43702D0F2845E2198 /* RacingStyle.swift */; };
-		54167C421B60FEB51DE7C0FC /* RaceSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */; };
-		6F3E8B21C4DA5072B9E1F203 /* ServerEndpointSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2D7A10B3C94F61A8D0E1F2 /* ServerEndpointSeed.swift */; };
-		7B78516057A02DB110E15BAA /* TimingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */; };
-		8B1A9B113EA53A1525154CB6 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8C4CA2E5D921E732A18AA764 /* Foundation.framework */; };
-		8EDC6159BF53A800EFC95FB4 /* RaceControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C74E3DF0340764C93B2C4A /* RaceControl.swift */; };
-		972BEB3745BDDB355888A1C2 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */; };
-		AF45B95BA68031D19688E706 /* FormulaLiveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */; };
-		B1C2D3E4F5061728394A5B6C /* Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* Presentation.swift */; };
-		B67E54C6927AB488F784D1D8 /* MarshalSectorData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B867F7E7B0E30EE999E6FFA9 /* MarshalSectorData.swift */; };
-		BF990EF9448974524A2FEC47 /* MarshalSectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435C869E93D436CFBB2538B2 /* MarshalSectors.swift */; };
-		C1368FF46609889F56604AD3 /* TrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED500EE61E80AF8A96A69188 /* TrackMapView.swift */; };
-		D1E2F3A4B5C60718394A5B6D /* TimingTower.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */; };
-		D309FEA7D841C41E3025C505 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88EBBFAD212F95C10C4871C /* DesignTokens.swift */; };
-		ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */; };
-		EF78477F765D44F8A856C9DF /* FlagBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB5D339A2F9BA3C53B01CE1 /* FlagBanner.swift */; };
-		F10000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* Assets.xcassets */; };
-		FC56819FE11AE16D02D35EF4 /* FlagStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D842A0C9DFAEEB2A3E4B8E4 /* FlagStatus.swift */; };
+		062236F7FBBE337390A4E45F /* MarshalSectorData.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA2B341877D3309D0C0F4A4 /* MarshalSectorData.swift */; };
+		0A79CB69EF088F6B663B5D18 /* FlagBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A46965DAD7E6C4B2371FFCC /* FlagBanner.swift */; };
+		0B229847130CEDBFE3F9D203 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F54320195E0CD4F246DE7802 /* Assets.xcassets */; };
+		0DBECD0FC5A6D3B8A9CDA4EF /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76903B28E22F2FA6D24C49D7 /* ScheduleView.swift */; };
+		1087AADE3D8051BC48E98D24 /* TeamRadio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9185DDA799DF991C091CD58A /* TeamRadio.swift */; };
+		150BC24FC2870762A904695A /* TimingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E5BF7B1E5690FDF0D307B7 /* TimingStore.swift */; };
+		2753F03C8C2CCDA59FEDF93F /* CircuitShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBAEE553D5DC0B1F99F3521 /* CircuitShape.swift */; };
+		2F2463B2772436EA27CED617 /* ServerEndpointSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E52E82F8723BA5EF0373F0 /* ServerEndpointSeed.swift */; };
+		48D5950CDC3F6533686469F3 /* RaceSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93D641138CD49F5212C0E17 /* RaceSchedule.swift */; };
+		4D99678A5CCAB373008DE70E /* MarshalSectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC4F4BB276C2E713532BB6F /* MarshalSectors.swift */; };
+		50AB6EB3D6D23DD42F86823A /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC831B70586963DD00810D4 /* DesignTokens.swift */; };
+		5F1F02B98CDCE3A295EB5D20 /* TeamRadioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F03BC1CAB9D900E1970656 /* TeamRadioView.swift */; };
+		6A443D5EA63B262320A7E69A /* ChampionshipStandings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AAB3D906BACC469B5CBD327 /* ChampionshipStandings.swift */; };
+		7AEBE684FF7DF756E7A4C375 /* CircuitShapeData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DFAD2B281EC3C234C67398 /* CircuitShapeData.swift */; };
+		86FAFC64B22B8BFAA30665AC /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0AD6EB3B24DC88301A2C0D85 /* Foundation.framework */; };
+		9A1B746EC43655F2679FCA5B /* ChampionshipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4D36A5BE526B972B58EECD /* ChampionshipView.swift */; };
+		9D994FEEA241BCAB0CFA6F81 /* RaceControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADC1AD71FE5E48DE978318BC /* RaceControl.swift */; };
+		9EC986CC318FE57A4C0716C6 /* CircuitMinimap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E35084111FF7A54443AC008A /* CircuitMinimap.swift */; };
+		B4423CFD4B9D3BF0FE9A3D4E /* RacingStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DC49A6035ABE2CDA0871DF0 /* RacingStyle.swift */; };
+		BF840DA43B44DE41A120E198 /* TrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D96F590A59D0D5BEEA57260 /* TrackMapView.swift */; };
+		C17A1A8029E9CB18E37D92E3 /* TimingSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D8D9A49A298B3438373E0A /* TimingSnapshot.swift */; };
+		C1BF21087DD5AD543B925EE1 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB03B22CE509FDB5B3344BA2 /* DashboardView.swift */; };
+		C9854E4EF68C88A3568D15EB /* TeamRadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F6F1D867B6B677C4E88AB9D /* TeamRadioPlayer.swift */; };
+		DAA07EBE32AC38D86CC9752F /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ED6677EBFCE0581861DB75D /* ScheduleStore.swift */; };
+		DD4E650927A86F61B2E67072 /* ServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CFAB8718FF23A95EC3AC60B /* ServerConnection.swift */; };
+		DE73248A744D310560A22F13 /* FlagStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = C655AA991A14789CD09FD5C7 /* FlagStatus.swift */; };
+		E876B7AC0F5D71664F5AEF7F /* SeenItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5299D4A4342927BA1F80EAEA /* SeenItems.swift */; };
+		EA2D4DB466A18BE874EA6F71 /* Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A98ED01483008D84FB7DE2 /* Presentation.swift */; };
+		F3EA3EC9D45A57E549118F9C /* FormulaLiveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4578F0AD50F7518ED348B044 /* FormulaLiveApp.swift */; };
+		FC9B3189016377F7307FE12C /* TimingTower.swift in Sources */ = {isa = PBXBuildFile; fileRef = C32CB8187C6829696E0CDBB8 /* TimingTower.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RaceSchedule.swift; path = Core/RaceSchedule.swift; sourceTree = "<group>"; };
-		0BB4009AC0DE0B45929ED0A0 /* DashboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DashboardView.swift; path = App/DashboardView.swift; sourceTree = "<group>"; };
-		140DF3FF88A5944BC0EECEF2 /* FormulaLive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FormulaLive.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		3AB5D339A2F9BA3C53B01CE1 /* FlagBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FlagBanner.swift; path = App/FlagBanner.swift; sourceTree = "<group>"; };
-		435C869E93D436CFBB2538B2 /* MarshalSectors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarshalSectors.swift; path = Core/MarshalSectors.swift; sourceTree = "<group>"; };
-		5E2D7A10B3C94F61A8D0E1F2 /* ServerEndpointSeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ServerEndpointSeed.swift; path = Core/ServerEndpointSeed.swift; sourceTree = "<group>"; };
-		7192FDEA907E8CD17CD69603 /* TimingSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingSnapshot.swift; path = Core/TimingSnapshot.swift; sourceTree = "<group>"; };
-		7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
-		86C74E3DF0340764C93B2C4A /* RaceControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RaceControl.swift; path = Core/RaceControl.swift; sourceTree = "<group>"; };
-		8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FormulaLiveApp.swift; path = App/FormulaLiveApp.swift; sourceTree = "<group>"; };
-		8C4CA2E5D921E732A18AA764 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS14.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		8D842A0C9DFAEEB2A3E4B8E4 /* FlagStatus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FlagStatus.swift; path = Core/FlagStatus.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5C /* Presentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Presentation.swift; path = Core/Presentation.swift; sourceTree = "<group>"; };
-		AE61960612C66304F9AD7DA7 /* ServerConnection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ServerConnection.swift; path = Core/ServerConnection.swift; sourceTree = "<group>"; };
-		B867F7E7B0E30EE999E6FFA9 /* MarshalSectorData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarshalSectorData.swift; path = Core/MarshalSectorData.swift; sourceTree = "<group>"; };
-		BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleStore.swift; path = App/ScheduleStore.swift; sourceTree = "<group>"; };
-		C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingTower.swift; path = App/TimingTower.swift; sourceTree = "<group>"; };
-		C52DC1B43702D0F2845E2198 /* RacingStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RacingStyle.swift; path = App/RacingStyle.swift; sourceTree = "<group>"; };
-		C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingStore.swift; path = App/TimingStore.swift; sourceTree = "<group>"; };
-		DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleView.swift; path = App/ScheduleView.swift; sourceTree = "<group>"; };
-		E88EBBFAD212F95C10C4871C /* DesignTokens.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesignTokens.swift; path = Core/DesignTokens.swift; sourceTree = "<group>"; };
-		ED500EE61E80AF8A96A69188 /* TrackMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackMapView.swift; path = App/TrackMapView.swift; sourceTree = "<group>"; };
-		F10000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = App/Assets.xcassets; sourceTree = "<group>"; };
+		0AD6EB3B24DC88301A2C0D85 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS14.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		12DFAD2B281EC3C234C67398 /* CircuitShapeData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CircuitShapeData.swift; path = Core/CircuitShapeData.swift; sourceTree = "<group>"; };
+		1C536F2982E981522B6DC03C /* Config.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		1D96F590A59D0D5BEEA57260 /* TrackMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackMapView.swift; path = App/TrackMapView.swift; sourceTree = "<group>"; };
+		2CBAEE553D5DC0B1F99F3521 /* CircuitShape.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CircuitShape.swift; path = Core/CircuitShape.swift; sourceTree = "<group>"; };
+		38A98ED01483008D84FB7DE2 /* Presentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Presentation.swift; path = Core/Presentation.swift; sourceTree = "<group>"; };
+		4578F0AD50F7518ED348B044 /* FormulaLiveApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FormulaLiveApp.swift; path = App/FormulaLiveApp.swift; sourceTree = "<group>"; };
+		4AAB3D906BACC469B5CBD327 /* ChampionshipStandings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChampionshipStandings.swift; path = Core/ChampionshipStandings.swift; sourceTree = "<group>"; };
+		4DC49A6035ABE2CDA0871DF0 /* RacingStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RacingStyle.swift; path = App/RacingStyle.swift; sourceTree = "<group>"; };
+		5299D4A4342927BA1F80EAEA /* SeenItems.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SeenItems.swift; path = Core/SeenItems.swift; sourceTree = "<group>"; };
+		62E5BF7B1E5690FDF0D307B7 /* TimingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingStore.swift; path = App/TimingStore.swift; sourceTree = "<group>"; };
+		76903B28E22F2FA6D24C49D7 /* ScheduleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleView.swift; path = App/ScheduleView.swift; sourceTree = "<group>"; };
+		7A4D36A5BE526B972B58EECD /* ChampionshipView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChampionshipView.swift; path = App/ChampionshipView.swift; sourceTree = "<group>"; };
+		7F6F1D867B6B677C4E88AB9D /* TeamRadioPlayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TeamRadioPlayer.swift; path = App/TeamRadioPlayer.swift; sourceTree = "<group>"; };
+		87E52E82F8723BA5EF0373F0 /* ServerEndpointSeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ServerEndpointSeed.swift; path = Core/ServerEndpointSeed.swift; sourceTree = "<group>"; };
+		8CFAB8718FF23A95EC3AC60B /* ServerConnection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ServerConnection.swift; path = Core/ServerConnection.swift; sourceTree = "<group>"; };
+		8ED6677EBFCE0581861DB75D /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScheduleStore.swift; path = App/ScheduleStore.swift; sourceTree = "<group>"; };
+		9185DDA799DF991C091CD58A /* TeamRadio.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TeamRadio.swift; path = Core/TeamRadio.swift; sourceTree = "<group>"; };
+		9A46965DAD7E6C4B2371FFCC /* FlagBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FlagBanner.swift; path = App/FlagBanner.swift; sourceTree = "<group>"; };
+		ADC1AD71FE5E48DE978318BC /* RaceControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RaceControl.swift; path = Core/RaceControl.swift; sourceTree = "<group>"; };
+		B6F03BC1CAB9D900E1970656 /* TeamRadioView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TeamRadioView.swift; path = App/TeamRadioView.swift; sourceTree = "<group>"; };
+		B9D8D9A49A298B3438373E0A /* TimingSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingSnapshot.swift; path = Core/TimingSnapshot.swift; sourceTree = "<group>"; };
+		BAC831B70586963DD00810D4 /* DesignTokens.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesignTokens.swift; path = Core/DesignTokens.swift; sourceTree = "<group>"; };
+		C32CB8187C6829696E0CDBB8 /* TimingTower.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingTower.swift; path = App/TimingTower.swift; sourceTree = "<group>"; };
+		C655AA991A14789CD09FD5C7 /* FlagStatus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FlagStatus.swift; path = Core/FlagStatus.swift; sourceTree = "<group>"; };
+		D9AB084699D03E52E4071E58 /* FormulaLive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FormulaLive.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAC4F4BB276C2E713532BB6F /* MarshalSectors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarshalSectors.swift; path = Core/MarshalSectors.swift; sourceTree = "<group>"; };
+		DB03B22CE509FDB5B3344BA2 /* DashboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DashboardView.swift; path = App/DashboardView.swift; sourceTree = "<group>"; };
+		DDA2B341877D3309D0C0F4A4 /* MarshalSectorData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarshalSectorData.swift; path = Core/MarshalSectorData.swift; sourceTree = "<group>"; };
+		E35084111FF7A54443AC008A /* CircuitMinimap.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CircuitMinimap.swift; path = App/CircuitMinimap.swift; sourceTree = "<group>"; };
+		F54320195E0CD4F246DE7802 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = App/Assets.xcassets; sourceTree = "<group>"; };
+		F93D641138CD49F5212C0E17 /* RaceSchedule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RaceSchedule.swift; path = Core/RaceSchedule.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		0FEC1AC9208E6D8A0FE8B07C /* Frameworks */ = {
+		91CB9D9C250634139CB15E8A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8B1A9B113EA53A1525154CB6 /* Foundation.framework in Frameworks */,
+				86FAFC64B22B8BFAA30665AC /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		1F31170BF884677D1B1AF1B1 /* Frameworks */ = {
+		0712B80171896B38B234680C = {
 			isa = PBXGroup;
 			children = (
-				49218F8A8206936742059A3B /* iOS */,
+				DEC0D4050B1E89AE9141D267 /* Products */,
+				CFD9BB87AE5EE7AD2AF3669B /* Frameworks */,
+				810397657436174381D2DB8D /* Sources */,
+				1C536F2982E981522B6DC03C /* Config.xcconfig */,
 			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		40FEA8D98BE437E530CFA25F /* Products */ = {
+		810397657436174381D2DB8D /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				140DF3FF88A5944BC0EECEF2 /* FormulaLive.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		49218F8A8206936742059A3B /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				8C4CA2E5D921E732A18AA764 /* Foundation.framework */,
-			);
-			name = iOS;
-			sourceTree = "<group>";
-		};
-		54B882DFD8937BC3C650039D /* Sources */ = {
-			isa = PBXGroup;
-			children = (
-				F10000000000000000000002 /* Assets.xcassets */,
-				0BB4009AC0DE0B45929ED0A0 /* DashboardView.swift */,
-				C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */,
-				8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */,
-				C8E18F37D9E21D555EAB2BDF /* TimingStore.swift */,
-				7192FDEA907E8CD17CD69603 /* TimingSnapshot.swift */,
-				BC40562A2CCD6FA8B81A1172 /* ScheduleStore.swift */,
-				DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */,
-				0B9B44EB58DAE405CCB2EDF9 /* RaceSchedule.swift */,
-				ED500EE61E80AF8A96A69188 /* TrackMapView.swift */,
-				C52DC1B43702D0F2845E2198 /* RacingStyle.swift */,
-				E88EBBFAD212F95C10C4871C /* DesignTokens.swift */,
-				86C74E3DF0340764C93B2C4A /* RaceControl.swift */,
-				A1B2C3D4E5F60718293A4B5C /* Presentation.swift */,
-				5E2D7A10B3C94F61A8D0E1F2 /* ServerEndpointSeed.swift */,
-				AE61960612C66304F9AD7DA7 /* ServerConnection.swift */,
-				3AB5D339A2F9BA3C53B01CE1 /* FlagBanner.swift */,
-				8D842A0C9DFAEEB2A3E4B8E4 /* FlagStatus.swift */,
-				435C869E93D436CFBB2538B2 /* MarshalSectors.swift */,
-				B867F7E7B0E30EE999E6FFA9 /* MarshalSectorData.swift */,
+				7A4D36A5BE526B972B58EECD /* ChampionshipView.swift */,
+				E35084111FF7A54443AC008A /* CircuitMinimap.swift */,
+				DB03B22CE509FDB5B3344BA2 /* DashboardView.swift */,
+				9A46965DAD7E6C4B2371FFCC /* FlagBanner.swift */,
+				4578F0AD50F7518ED348B044 /* FormulaLiveApp.swift */,
+				4DC49A6035ABE2CDA0871DF0 /* RacingStyle.swift */,
+				8ED6677EBFCE0581861DB75D /* ScheduleStore.swift */,
+				76903B28E22F2FA6D24C49D7 /* ScheduleView.swift */,
+				7F6F1D867B6B677C4E88AB9D /* TeamRadioPlayer.swift */,
+				B6F03BC1CAB9D900E1970656 /* TeamRadioView.swift */,
+				62E5BF7B1E5690FDF0D307B7 /* TimingStore.swift */,
+				C32CB8187C6829696E0CDBB8 /* TimingTower.swift */,
+				1D96F590A59D0D5BEEA57260 /* TrackMapView.swift */,
+				4AAB3D906BACC469B5CBD327 /* ChampionshipStandings.swift */,
+				2CBAEE553D5DC0B1F99F3521 /* CircuitShape.swift */,
+				12DFAD2B281EC3C234C67398 /* CircuitShapeData.swift */,
+				BAC831B70586963DD00810D4 /* DesignTokens.swift */,
+				C655AA991A14789CD09FD5C7 /* FlagStatus.swift */,
+				DDA2B341877D3309D0C0F4A4 /* MarshalSectorData.swift */,
+				DAC4F4BB276C2E713532BB6F /* MarshalSectors.swift */,
+				38A98ED01483008D84FB7DE2 /* Presentation.swift */,
+				ADC1AD71FE5E48DE978318BC /* RaceControl.swift */,
+				F93D641138CD49F5212C0E17 /* RaceSchedule.swift */,
+				5299D4A4342927BA1F80EAEA /* SeenItems.swift */,
+				8CFAB8718FF23A95EC3AC60B /* ServerConnection.swift */,
+				87E52E82F8723BA5EF0373F0 /* ServerEndpointSeed.swift */,
+				9185DDA799DF991C091CD58A /* TeamRadio.swift */,
+				B9D8D9A49A298B3438373E0A /* TimingSnapshot.swift */,
+				F54320195E0CD4F246DE7802 /* Assets.xcassets */,
 			);
 			name = Sources;
 			sourceTree = "<group>";
 		};
-		BBF2C84096F07D38FFE21794 = {
+		CFD9BB87AE5EE7AD2AF3669B /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */,
-				40FEA8D98BE437E530CFA25F /* Products */,
-				1F31170BF884677D1B1AF1B1 /* Frameworks */,
-				54B882DFD8937BC3C650039D /* Sources */,
+				FDB850534FE0CDF0C80E133F /* iOS */,
 			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		DEC0D4050B1E89AE9141D267 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D9AB084699D03E52E4071E58 /* FormulaLive.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FDB850534FE0CDF0C80E133F /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				0AD6EB3B24DC88301A2C0D85 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		15033CB876BF1D911ECEC4CE /* FormulaLive */ = {
+		21D74859F40061310F8021B1 /* FormulaLive */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B6737E0B3D5A82274E21CFE0 /* Build configuration list for PBXNativeTarget "FormulaLive" */;
+			buildConfigurationList = CB85031AD1518A98CFF4B77A /* Build configuration list for PBXNativeTarget "FormulaLive" */;
 			buildPhases = (
-				6B99A6D094FF31C749BBA19C /* Sources */,
-				0FEC1AC9208E6D8A0FE8B07C /* Frameworks */,
-				5A255E200A058775A5842E29 /* Resources */,
+				870DADF241338AF400FFE2CA /* Sources */,
+				91CB9D9C250634139CB15E8A /* Frameworks */,
+				96EC082E5AD52DFACF86FA28 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -146,19 +173,19 @@
 			);
 			name = FormulaLive;
 			productName = FormulaLive;
-			productReference = 140DF3FF88A5944BC0EECEF2 /* FormulaLive.app */;
+			productReference = D9AB084699D03E52E4071E58 /* FormulaLive.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		142C5AC732E636BC48E0C354 /* Project object */ = {
+		D1F1FDC948351833DE5194DC /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 			};
-			buildConfigurationList = 569F215E16CA84598425B59F /* Build configuration list for PBXProject "FormulaLive" */;
+			buildConfigurationList = 570FC9806E36D14D238EBA91 /* Build configuration list for PBXProject "FormulaLive" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -166,61 +193,155 @@
 				en,
 				Base,
 			);
-			mainGroup = BBF2C84096F07D38FFE21794;
+			mainGroup = 0712B80171896B38B234680C;
 			minimizedProjectReferenceProxies = 0;
-			productRefGroup = 40FEA8D98BE437E530CFA25F /* Products */;
+			productRefGroup = DEC0D4050B1E89AE9141D267 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				15033CB876BF1D911ECEC4CE /* FormulaLive */,
+				21D74859F40061310F8021B1 /* FormulaLive */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		5A255E200A058775A5842E29 /* Resources */ = {
+		96EC082E5AD52DFACF86FA28 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F10000000000000000000001 /* Assets.xcassets in Resources */,
+				0B229847130CEDBFE3F9D203 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		6B99A6D094FF31C749BBA19C /* Sources */ = {
+		870DADF241338AF400FFE2CA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				25F3BF3448627006D20C70A7 /* DashboardView.swift in Sources */,
-				D1E2F3A4B5C60718394A5B6D /* TimingTower.swift in Sources */,
-				AF45B95BA68031D19688E706 /* FormulaLiveApp.swift in Sources */,
-				7B78516057A02DB110E15BAA /* TimingStore.swift in Sources */,
-				4F74F5041D4934ACD47744AA /* TimingSnapshot.swift in Sources */,
-				972BEB3745BDDB355888A1C2 /* ScheduleStore.swift in Sources */,
-				ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */,
-				54167C421B60FEB51DE7C0FC /* RaceSchedule.swift in Sources */,
-				C1368FF46609889F56604AD3 /* TrackMapView.swift in Sources */,
-				5164AE09974158E71F0128E3 /* RacingStyle.swift in Sources */,
-				D309FEA7D841C41E3025C505 /* DesignTokens.swift in Sources */,
-				8EDC6159BF53A800EFC95FB4 /* RaceControl.swift in Sources */,
-				B1C2D3E4F5061728394A5B6C /* Presentation.swift in Sources */,
-				6F3E8B21C4DA5072B9E1F203 /* ServerEndpointSeed.swift in Sources */,
-				2BD0ACD880067E69075F13EE /* ServerConnection.swift in Sources */,
-				EF78477F765D44F8A856C9DF /* FlagBanner.swift in Sources */,
-				FC56819FE11AE16D02D35EF4 /* FlagStatus.swift in Sources */,
-				BF990EF9448974524A2FEC47 /* MarshalSectors.swift in Sources */,
-				B67E54C6927AB488F784D1D8 /* MarshalSectorData.swift in Sources */,
+				9A1B746EC43655F2679FCA5B /* ChampionshipView.swift in Sources */,
+				9EC986CC318FE57A4C0716C6 /* CircuitMinimap.swift in Sources */,
+				C1BF21087DD5AD543B925EE1 /* DashboardView.swift in Sources */,
+				0A79CB69EF088F6B663B5D18 /* FlagBanner.swift in Sources */,
+				F3EA3EC9D45A57E549118F9C /* FormulaLiveApp.swift in Sources */,
+				B4423CFD4B9D3BF0FE9A3D4E /* RacingStyle.swift in Sources */,
+				DAA07EBE32AC38D86CC9752F /* ScheduleStore.swift in Sources */,
+				0DBECD0FC5A6D3B8A9CDA4EF /* ScheduleView.swift in Sources */,
+				C9854E4EF68C88A3568D15EB /* TeamRadioPlayer.swift in Sources */,
+				5F1F02B98CDCE3A295EB5D20 /* TeamRadioView.swift in Sources */,
+				150BC24FC2870762A904695A /* TimingStore.swift in Sources */,
+				FC9B3189016377F7307FE12C /* TimingTower.swift in Sources */,
+				BF840DA43B44DE41A120E198 /* TrackMapView.swift in Sources */,
+				6A443D5EA63B262320A7E69A /* ChampionshipStandings.swift in Sources */,
+				2753F03C8C2CCDA59FEDF93F /* CircuitShape.swift in Sources */,
+				7AEBE684FF7DF756E7A4C375 /* CircuitShapeData.swift in Sources */,
+				50AB6EB3D6D23DD42F86823A /* DesignTokens.swift in Sources */,
+				DE73248A744D310560A22F13 /* FlagStatus.swift in Sources */,
+				062236F7FBBE337390A4E45F /* MarshalSectorData.swift in Sources */,
+				4D99678A5CCAB373008DE70E /* MarshalSectors.swift in Sources */,
+				EA2D4DB466A18BE874EA6F71 /* Presentation.swift in Sources */,
+				9D994FEEA241BCAB0CFA6F81 /* RaceControl.swift in Sources */,
+				48D5950CDC3F6533686469F3 /* RaceSchedule.swift in Sources */,
+				E876B7AC0F5D71664F5AEF7F /* SeenItems.swift in Sources */,
+				DD4E650927A86F61B2E67072 /* ServerConnection.swift in Sources */,
+				2F2463B2772436EA27CED617 /* ServerEndpointSeed.swift in Sources */,
+				1087AADE3D8051BC48E98D24 /* TeamRadio.swift in Sources */,
+				C17A1A8029E9CB18E37D92E3 /* TimingSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		435C4266EFDDD802B50C735D /* Release */ = {
+		01197213FD4C8BE2EAA6F80F /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */;
+			baseConfigurationReference = 1C536F2982E981522B6DC03C /* Config.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = App/FormulaLive.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Formula Live";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connect to your Formula Live timing server on your local network.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.formulalive.app;
+				PRODUCT_NAME = FormulaLive;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4A4CF5971A342D8B7124FE9A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		89230055463807CBB930AEA0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1C536F2982E981522B6DC03C /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -250,7 +371,7 @@
 			};
 			name = Release;
 		};
-		55A94C7467B1B306898A0F40 /* Debug */ = {
+		A5CA38B8ABA8F7B0C89A0CFD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -311,113 +432,28 @@
 			};
 			name = Debug;
 		};
-		B1FF2470807F0E5FDDC8B4E7 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = App/FormulaLive.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = App/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Formula Live";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connect to your Formula Live timing server on your local network.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.formulalive.app;
-				PRODUCT_NAME = FormulaLive;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		E2D37FBF4E28EE239555CFC7 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		569F215E16CA84598425B59F /* Build configuration list for PBXProject "FormulaLive" */ = {
+		570FC9806E36D14D238EBA91 /* Build configuration list for PBXProject "FormulaLive" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				55A94C7467B1B306898A0F40 /* Debug */,
-				E2D37FBF4E28EE239555CFC7 /* Release */,
+				A5CA38B8ABA8F7B0C89A0CFD /* Debug */,
+				4A4CF5971A342D8B7124FE9A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B6737E0B3D5A82274E21CFE0 /* Build configuration list for PBXNativeTarget "FormulaLive" */ = {
+		CB85031AD1518A98CFF4B77A /* Build configuration list for PBXNativeTarget "FormulaLive" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				435C4266EFDDD802B50C735D /* Release */,
-				B1FF2470807F0E5FDDC8B4E7 /* Debug */,
+				89230055463807CBB930AEA0 /* Release */,
+				01197213FD4C8BE2EAA6F80F /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 142C5AC732E636BC48E0C354 /* Project object */;
+	rootObject = D1F1FDC948351833DE5194DC /* Project object */;
 }

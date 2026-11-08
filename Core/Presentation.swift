@@ -41,6 +41,44 @@ public enum TimingColumn: Sendable, Equatable {
     case position, driver, team, gap, lastLap, tyre
 }
 
+/// Which timing the tower's timing column shows during a race. Tapping the tower steps through
+/// them in this order and wraps around.
+public enum TimingMetric: CaseIterable, Sendable, Equatable {
+    /// Gap to the car directly ahead.
+    case interval
+    /// Gap to the race leader.
+    case gapToLeader
+    /// The driver's fastest lap of the session.
+    case fastestLap
+
+    public var next: TimingMetric {
+        let all = Self.allCases
+        return all[(all.firstIndex(of: self)! + 1) % all.count]
+    }
+
+    /// The column heading.
+    public var title: String {
+        switch self {
+        case .interval: "Interval"
+        case .gapToLeader: "To leader"
+        case .fastestLap: "Fastest lap"
+        }
+    }
+
+    /// What the column now shows, as a sentence for VoiceOver and the tap hint.
+    public var spokenName: String {
+        switch self {
+        case .interval: "gap to the car ahead"
+        case .gapToLeader: "gap to the leader"
+        case .fastestLap: "fastest lap"
+        }
+    }
+
+    /// The leader has no gap to show, so those two columns mark them with a crown. Their fastest
+    /// lap is a time like anyone else's.
+    public var marksLeader: Bool { self != .fastestLap }
+}
+
 /// How much of the tower fits. Views try `wide`, then `standard`, then `compact`, and
 /// only scroll horizontally when even `compact` does not fit.
 public enum TimingLayout: CaseIterable, Sendable {
@@ -89,6 +127,21 @@ extension TimingDriver {
     public var gapText: String {
         if isLeader { return "LEADER" }
         let trimmed = gap?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "—" : trimmed
+    }
+
+    /// The text for the timing column under `metric`: a gap such as "+1.187" or "+1 LAP", or a lap
+    /// time, with a dash when the figure is not known.
+    public func timingText(_ metric: TimingMetric) -> String {
+        switch metric {
+        case .interval: Self.gapText(interval)
+        case .gapToLeader: gapText
+        case .fastestLap: formattedBestLap
+        }
+    }
+
+    private static func gapText(_ value: String?) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? "—" : trimmed
     }
 
@@ -377,6 +430,46 @@ public enum MarkerSpread {
 extension AppSection {
     /// Familiar navigation symbols; raw values remain the spoken names.
     public var symbol: String { self == .live ? "flag.checkered" : "calendar" }
+}
+
+/// The swipeable pages of the live event screen, in swipe order: the running order first,
+/// then the live track, then race control. Raw values are the spoken names.
+public enum DashboardPage: String, CaseIterable, Identifiable, Sendable {
+    case order = "Running order", track = "Live track", raceControl = "Race control", radio = "Team radio", championship = "Championship"
+    public var id: Self { self }
+
+    public var symbol: String {
+        switch self {
+        case .order: "list.number"
+        case .track: "map"
+        case .raceControl: "flag.fill"
+        case .radio: "waveform"
+        case .championship: "trophy.fill"
+        }
+    }
+}
+
+/// The pages repeat endlessly: swiping past the last page shows the first again, and swiping back
+/// from the first shows the last. The pager lays the pages out as `[last, ...all pages, first]`;
+/// the two end slots are look-alike clones that the pager jumps away from, unseen, once a swipe
+/// settles on one.
+extension DashboardPage {
+    /// Every slot the pager lays out, clones included.
+    public static var loopSlots: Range<Int> { 0..<(allCases.count + 2) }
+
+    /// The page shown in a slot; the clone slots show the page they imitate.
+    public init(slot: Int) {
+        let count = Self.allCases.count
+        self = Self.allCases[((slot - 1) % count + count) % count]
+    }
+
+    /// The real (non-clone) slot of this page.
+    public var slot: Int { Self.allCases.firstIndex(of: self)! + 1 }
+
+    public static func isClone(slot: Int) -> Bool { slot == 0 || slot == allCases.count + 1 }
+
+    /// Where a settled swipe should land: a clone slot maps to the real slot of the same page.
+    public static func settledSlot(_ slot: Int) -> Int { DashboardPage(slot: slot).slot }
 }
 
 extension FeedStatus {

@@ -4,13 +4,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-pub const TOPICS: [&str; 7] = [
+pub const TOPICS: [&str; 8] = [
     "drivers",
     "position",
     "intervals",
     "laps",
     "stints",
     "race_control",
+    "team_radio",
     "location",
 ];
 
@@ -20,6 +21,10 @@ const MESSAGE_LIMIT: usize = 100;
 /// Race-control messages kept per session. Far more than are shown: the flags that are out now are
 /// worked out from this history, and a session can run past the visible 100 messages.
 const RACE_CONTROL_LIMIT: usize = 1000;
+
+/// Radio clips kept per session. A race has a few hundred at most, so this holds a whole session
+/// and only guards memory; older clips drop off first.
+const RADIO_LIMIT: usize = 500;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Session {
@@ -42,6 +47,8 @@ pub struct Snapshot {
     pub messages: Vec<RaceMessage>,
     #[serde(default)]
     pub track: Option<TrackLayout>,
+    #[serde(default)]
+    pub radios: Vec<TeamRadio>,
     /// Which sectors are under yellow and whether the whole track is red or under a safety car.
     #[serde(default)]
     pub flags: FlagStatus,
@@ -64,9 +71,14 @@ pub struct Driver {
     pub team: String,
     pub color: String,
     pub position: Option<i64>,
+    /// Gap to the leader.
     pub gap: Option<String>,
+    /// Gap to the car directly ahead.
+    pub interval: Option<String>,
     pub lap: Option<i64>,
     pub lap_time: Option<f64>,
+    /// The driver's fastest completed lap of the session, in seconds.
+    pub best_lap: Option<f64>,
     pub compound: Option<String>,
     #[serde(default)]
     pub location: Option<DriverLocation>,
@@ -78,6 +90,25 @@ pub struct RaceMessage {
     pub date: String,
     pub message: String,
     pub flag: Option<String>,
+}
+
+/// One driver radio clip. `recording_url` is absent only for demo clips, which have no audio.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamRadio {
+    pub id: String,
+    pub date: String,
+    pub driver_number: i64,
+    pub recording_url: Option<String>,
+}
+
+/// Recordings are fetched by the app, so only plain https links with a host are passed on.
+fn recording_url(record: &Value) -> Option<String> {
+    let url = record["recording_url"].as_str()?;
+    let rest = url.strip_prefix("https://")?;
+    let host = rest.split(['/', '?', '#']).next()?;
+    (!host.is_empty() && !host.contains('@') && !url.chars().any(char::is_whitespace))
+        .then(|| url.to_string())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -116,6 +147,14 @@ fn location(record: &Value) -> Option<DriverLocation> {
     })
 }
 
+/// OpenF1 reports a gap as seconds, or as text such as "+1 LAP" for lapped cars.
+fn gap_text(value: &Value) -> Option<String> {
+    value
+        .as_f64()
+        .map(|n| format!("+{n:.3}"))
+        .or_else(|| value.as_str().map(str::to_string))
+}
+
 pub struct TimingState {
     pub mode: String,
     pub upstream: String,
@@ -126,6 +165,9 @@ pub struct TimingState {
     /// two messages in the same second (a yellow and its clear) must keep the order they were sent in.
     race_control_arrival: HashMap<String, u64>,
     next_arrival: u64,
+    /// Every completed lap time per driver, by lap number and with the stream revision it came
+    /// from. The `laps` record holds only the newest lap, so the fastest one is kept here.
+    lap_times: HashMap<String, HashMap<i64, (f64, Option<i64>)>>,
     updated_at: Option<DateTime<Utc>>,
 }
 
@@ -148,6 +190,7 @@ impl TimingState {
             records: HashMap::new(),
             race_control_arrival: HashMap::new(),
             next_arrival: 0,
+            lap_times: HashMap::new(),
             updated_at: None,
         }
     }
@@ -156,6 +199,7 @@ impl TimingState {
         if self.session.as_ref().map(|s| s.session_key) != Some(session.session_key) {
             self.records.clear();
             self.race_control_arrival.clear();
+            self.lap_times.clear();
             self.track = None;
             self.updated_at = None;
         }
@@ -173,7 +217,20 @@ impl TimingState {
         if topic == "location" && location(&record).is_none() {
             return;
         }
-        let key = if topic == "race_control" {
+        if topic == "team_radio"
+            && (event_date(&record).is_none()
+                || (self.mode != "demo" && recording_url(&record).is_none()))
+        {
+            return;
+        }
+        let key = if topic == "team_radio" {
+            let (Some(date), Some(number)) =
+                (record["date"].as_str(), record["driver_number"].as_i64())
+            else {
+                return;
+            };
+            format!("{date}:{number}")
+        } else if topic == "race_control" {
             let (Some(date), Some(message)) = (record["date"].as_str(), record["message"].as_str())
             else {
                 return;
@@ -185,6 +242,9 @@ impl TimingState {
             };
             number.to_string()
         };
+        if topic == "laps" {
+            self.note_lap_time(&key, &record);
+        }
         let bucket = self.records.entry(topic.into()).or_default();
         let mut preserve_live_fields = false;
         if let Some(old) = bucket.get(&key) {
@@ -235,7 +295,12 @@ impl TimingState {
             self.next_arrival += 1;
         }
         bucket.insert(key, merged);
-        if topic == "race_control" && bucket.len() > RACE_CONTROL_LIMIT {
+        let limit = match topic {
+            "race_control" => RACE_CONTROL_LIMIT,
+            "team_radio" => RADIO_LIMIT,
+            _ => usize::MAX,
+        };
+        if bucket.len() > limit {
             if let Some(oldest) = bucket
                 .iter()
                 // Messages that cannot change a flag go first, so a long-running flag is not forgotten.
@@ -251,6 +316,39 @@ impl TimingState {
                 self.updated_at = Some(date);
             }
         }
+    }
+
+    /// Remember a completed lap even when a newer lap has already replaced it in the `laps`
+    /// record, so a late result still counts toward the fastest lap. A later revision of the same
+    /// lap corrects it; an older one, or a REST copy of a lap the stream already reported, does not.
+    fn note_lap_time(&mut self, key: &str, record: &Value) {
+        let (Some(lap), Some(duration)) = (
+            record["lap_number"].as_i64(),
+            record["lap_duration"].as_f64(),
+        ) else {
+            return;
+        };
+        if !duration.is_finite() || duration <= 0.0 {
+            return;
+        }
+        let revision = record["_id"].as_i64();
+        let laps = self.lap_times.entry(key.to_string()).or_default();
+        if let Some((_, known)) = laps.get(&lap) {
+            match (revision, *known) {
+                (Some(new), Some(old)) if new < old => return,
+                (None, Some(_)) => return,
+                _ => {}
+            }
+        }
+        laps.insert(lap, (duration, revision));
+    }
+
+    fn best_lap(&self, key: &str) -> Option<f64> {
+        self.lap_times
+            .get(key)?
+            .values()
+            .map(|(duration, _)| *duration)
+            .min_by(f64::total_cmp)
     }
 
     fn record(&self, topic: &str, key: &str) -> &Value {
@@ -287,7 +385,7 @@ impl TimingState {
                 let text =
                     |field: &str, fallback: &str| d[field].as_str().unwrap_or(fallback).to_string();
                 let acronym = text("name_acronym", &number.to_string());
-                let gap = &self.record("intervals", key)["gap_to_leader"];
+                let intervals = self.record("intervals", key);
                 Driver {
                     number,
                     name: text("full_name", &acronym),
@@ -295,12 +393,11 @@ impl TimingState {
                     team: text("team_name", "Unknown team"),
                     color: text("team_colour", "888888"),
                     position: self.record("position", key)["position"].as_i64(),
-                    gap: gap
-                        .as_f64()
-                        .map(|n| format!("+{n:.3}"))
-                        .or_else(|| gap.as_str().map(str::to_string)),
+                    gap: gap_text(&intervals["gap_to_leader"]),
+                    interval: gap_text(&intervals["interval"]),
                     lap: self.record("laps", key)["lap_number"].as_i64(),
                     lap_time: self.record("laps", key)["lap_duration"].as_f64(),
+                    best_lap: self.best_lap(key),
                     location: location(self.record("location", key)),
                     compound: self.record("stints", key)["compound"]
                         .as_str()
@@ -328,6 +425,27 @@ impl TimingState {
                 .then_with(|| a.id.cmp(&b.id))
         });
         messages.truncate(MESSAGE_LIMIT);
+        // Dates are parsed once per clip, not on every comparison.
+        let mut radios: Vec<(Option<DateTime<chrono::FixedOffset>>, TeamRadio)> = self
+            .records
+            .get("team_radio")
+            .into_iter()
+            .flat_map(|b| b.iter())
+            .map(|(key, r)| {
+                let date = r["date"].as_str().unwrap_or_default();
+                (
+                    DateTime::parse_from_rfc3339(date).ok(),
+                    TeamRadio {
+                        id: key.clone(),
+                        date: date.into(),
+                        driver_number: r["driver_number"].as_i64().unwrap_or(0),
+                        recording_url: recording_url(r),
+                    },
+                )
+            })
+            .collect();
+        radios.sort_by(|(a_at, a), (b_at, b)| b_at.cmp(a_at).then_with(|| a.id.cmp(&b.id)));
+        let radios: Vec<TeamRadio> = radios.into_iter().map(|(_, radio)| radio).collect();
         let mut snapshot = Snapshot {
             mode: self.mode.clone(),
             upstream: self.upstream.clone(),
@@ -343,6 +461,7 @@ impl TimingState {
             drivers,
             messages,
             track: self.track.clone(),
+            radios,
             flags: self.flags(),
         };
         if self.mode == "demo" {
@@ -391,9 +510,20 @@ impl TimingState {
                 json!({"full_name":name,"name_acronym":acronym,"team_name":team,"team_colour":color}),
             );
             apply("position", json!({"position":i+1}));
+            // Gaps to the car ahead, and to the leader as their running total.
+            let intervals = [0.0, 2.431, 1.187, 3.052];
+            let to_leader: f64 = intervals[..=i].iter().sum();
             apply(
                 "intervals",
-                json!({"gap_to_leader": if i == 0 { None } else { Some(i as f64 * 2.431) }}),
+                json!({
+                    "gap_to_leader": (i > 0).then_some(to_leader),
+                    "interval": (i > 0).then_some(intervals[i]),
+                }),
+            );
+            // An earlier, faster lap, so the fastest lap differs from the last one.
+            apply(
+                "laps",
+                json!({"lap_number":23,"lap_duration":90.512 + i as f64 * 0.3}),
             );
             apply(
                 "laps",
@@ -409,6 +539,15 @@ impl TimingState {
         // marshal sectors of the sample circuit, which the app splits into twelve equal parts.
         state.apply("race_control", json!({"session_key":1,"date":date,"category":"Flag","flag":"YELLOW","scope":"Sector","sector":3,"message":"DEMO — YELLOW IN TRACK SECTOR 3"}));
         state.apply("race_control", json!({"session_key":1,"date":date,"category":"Flag","flag":"DOUBLE YELLOW","scope":"Sector","sector":4,"message":"DEMO — DOUBLE YELLOW IN TRACK SECTOR 4"}));
+        // Sample clips only show the layout: they carry no recording, so nothing can be played.
+        for (i, number) in [4, 16, 1].into_iter().enumerate() {
+            let at = (Utc::now() - chrono::Duration::seconds(45 * (3 - i as i64)))
+                .to_rfc3339_opts(SecondsFormat::Secs, true);
+            state.apply(
+                "team_radio",
+                json!({"session_key":1,"date":at,"driver_number":number}),
+            );
+        }
         state.track = Some(TrackLayout {
             rotation_degrees: None,
             source: "Fictional demo circuit".into(),

@@ -40,6 +40,10 @@ pub struct ResultEntry {
     pub status: String,
     pub points: f64,
     pub fastest_lap: bool,
+    /// How many times the car stopped in the pits. Absent when the source has no pit-stop data for the
+    /// race, which is different from a car that never stopped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pit_stops: Option<u32>,
 }
 
 /// What is known about one race. Each race has its own lock, so a slow fetch for one race never blocks
@@ -102,7 +106,11 @@ impl Results {
         let mut slot = slot.lock().await;
         if let Some((saved, at)) = &slot.saved {
             // A classification that is not published yet is re-checked sooner than a published one.
-            let ttl = if saved.entries.is_empty() {
+            // The same goes for a classification whose pit stops are still unknown (an outage or not
+            // published yet), so the counts appear soon after the source has them.
+            let incomplete = saved.entries.is_empty()
+                || saved.entries.iter().all(|entry| entry.pit_stops.is_none());
+            let ttl = if incomplete {
                 self.retry_after
             } else {
                 self.ttl
@@ -153,11 +161,81 @@ impl Results {
             .error_for_status()?
             .json()
             .await?;
-        normalize(year, round, &value)
+        let mut results = normalize(year, round, &value, None)?;
+        // Pit stops are a nice-to-have: without them the classification is still worth showing.
+        if !results.entries.is_empty() {
+            match self.fetch_pit_stops(year, round).await {
+                Ok(stops) => results = normalize(year, round, &value, stops.as_ref())?,
+                Err(error) => {
+                    warn!(year, round, error = %format!("{error:#}"), "Pit stops refresh failed");
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    /// Pit stops per Jolpica `driverId`, or None while the source has published none for the race.
+    async fn fetch_pit_stops(&self, year: i32, round: u32) -> Result<Option<HashMap<String, u32>>> {
+        const PAGE: usize = 100;
+        // A race has a few dozen stops; the cap only stops a misbehaving source from looping forever.
+        const MAX_PAGES: usize = 10;
+        let mut stops: HashMap<String, u32> = HashMap::new();
+        let mut seen = 0;
+        for page in 0..MAX_PAGES {
+            let value: Value = self
+                .http
+                .get(format!("{}/{year}/{round}/pitstops/", self.base_url))
+                .query(&[
+                    ("limit", PAGE.to_string()),
+                    ("offset", (page * PAGE).to_string()),
+                ])
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
+            let total: usize = value["MRData"]["total"]
+                .as_str()
+                .context("Missing pit stops total")?
+                .parse()?;
+            if total == 0 {
+                return Ok(None);
+            }
+            let race = value["MRData"]["RaceTable"]["Races"]
+                .as_array()
+                .and_then(|races| races.first())
+                .context("Missing pit stops race")?;
+            if race["season"].as_str().and_then(|s| s.parse::<i32>().ok()) != Some(year)
+                || race["round"].as_str().and_then(|s| s.parse::<u32>().ok()) != Some(round)
+            {
+                bail!("Unexpected race in pit stops");
+            }
+            let records = race["PitStops"].as_array().context("Missing pit stops")?;
+            for record in records {
+                if let Some(driver) = record["driverId"].as_str() {
+                    *stops.entry(driver.to_owned()).or_default() += 1;
+                }
+            }
+            seen += records.len();
+            if seen >= total {
+                return Ok(Some(stops));
+            }
+            if records.is_empty() {
+                break;
+            }
+        }
+        bail!("Incomplete pit stops response")
     }
 }
 
-fn normalize(year: i32, round: u32, value: &Value) -> Result<RaceResults> {
+/// `pit_stops` counts stops per Jolpica `driverId`. When it is present, a driver it does not list never
+/// stopped; when it is absent, the number of stops is unknown.
+fn normalize(
+    year: i32,
+    round: u32,
+    value: &Value,
+    pit_stops: Option<&HashMap<String, u32>>,
+) -> Result<RaceResults> {
     let races = value["MRData"]["RaceTable"]["Races"]
         .as_array()
         .context("Missing race results")?;
@@ -178,7 +256,7 @@ fn normalize(year: i32, round: u32, value: &Value) -> Result<RaceResults> {
             bail!("Incomplete results response");
         }
         for record in records {
-            entries.push(entry(record)?);
+            entries.push(entry(record, pit_stops)?);
         }
         entries.sort_by_key(|entry| entry.position);
     } else if total != 0 {
@@ -195,7 +273,7 @@ fn normalize(year: i32, round: u32, value: &Value) -> Result<RaceResults> {
     })
 }
 
-fn entry(record: &Value) -> Result<ResultEntry> {
+fn entry(record: &Value, pit_stops: Option<&HashMap<String, u32>>) -> Result<ResultEntry> {
     let text = |value: &Value| -> Result<String> {
         Ok(value.as_str().context("Missing result field")?.to_owned())
     };
@@ -218,12 +296,19 @@ fn entry(record: &Value) -> Result<ResultEntry> {
         status: text(&record["status"])?,
         points: text(&record["points"])?.parse()?,
         fastest_lap: record["FastestLap"]["rank"].as_str() == Some("1"),
+        pit_stops: pit_stops.map(|stops| {
+            driver["driverId"]
+                .as_str()
+                .and_then(|id| stops.get(id).copied())
+                .unwrap_or(0)
+        }),
     })
 }
 
 fn demo_results(year: i32, round: u32) -> RaceResults {
     let entry =
         |position: u32, code: &str, name: &str, team: &str, time: &str, points: f64| ResultEntry {
+            pit_stops: Some(if position % 2 == 0 { 2 } else { 1 }),
             position,
             position_text: position.to_string(),
             code: Some(code.into()),
@@ -307,7 +392,7 @@ mod tests {
             ]),
             "4",
         );
-        let results = normalize(2025, 1, &value).unwrap();
+        let results = normalize(2025, 1, &value, None).unwrap();
         let positions: Vec<_> = results.entries.iter().map(|e| e.position).collect();
         assert_eq!(positions, [1, 2, 15, 19]);
         let winner = &results.entries[0];
@@ -326,16 +411,49 @@ mod tests {
     }
 
     #[test]
+    fn pit_stops_are_counted_per_driver_and_unknown_without_data() {
+        let value = race(
+            json!([
+                {"position":"1","positionText":"1","points":"25","grid":"1","laps":"57","status":"Finished",
+                 "Driver":{"driverId":"norris","code":"NOR","givenName":"Lando","familyName":"Norris"},
+                 "Constructor":{"name":"McLaren"},"Time":{"time":"1:42:06.304"}},
+                {"position":"2","positionText":"R","points":"0","grid":"2","laps":"0","status":"Retired",
+                 "Driver":{"driverId":"max_verstappen","givenName":"Max","familyName":"Verstappen"},
+                 "Constructor":{"name":"Red Bull"}}
+            ]),
+            "2",
+        );
+        let stops = HashMap::from([("norris".to_owned(), 2)]);
+        let known = normalize(2025, 1, &value, Some(&stops)).unwrap();
+        assert_eq!(known.entries[0].pit_stops, Some(2));
+        assert_eq!(
+            known.entries[1].pit_stops,
+            Some(0),
+            "listed data, no stops: never stopped"
+        );
+        let unknown = normalize(2025, 1, &value, None).unwrap();
+        assert!(unknown.entries.iter().all(|e| e.pit_stops.is_none()));
+        let wire = serde_json::to_value(&unknown.entries[0]).unwrap();
+        assert!(
+            wire.get("pitStops").is_none(),
+            "unknown stops are left off the wire"
+        );
+    }
+
+    #[test]
     fn unpublished_results_are_empty_but_mismatches_are_errors() {
         let none = json!({"MRData":{"total":"0","RaceTable":{"Races":[]}}});
-        assert!(normalize(2025, 1, &none).unwrap().entries.is_empty());
+        assert!(normalize(2025, 1, &none, None).unwrap().entries.is_empty());
         let value = race(json!([]), "1");
-        assert!(normalize(2025, 1, &value).is_err(), "truncated response");
+        assert!(
+            normalize(2025, 1, &value, None).is_err(),
+            "truncated response"
+        );
         let value = race(json!([]), "0");
-        assert!(normalize(2025, 2, &value).is_err(), "wrong round");
-        assert!(normalize(2024, 1, &value).is_err(), "wrong season");
+        assert!(normalize(2025, 2, &value, None).is_err(), "wrong round");
+        assert!(normalize(2024, 1, &value, None).is_err(), "wrong season");
         let truncated = json!({"MRData":{"total":"3","RaceTable":{"Races":[]}}});
-        assert!(normalize(2025, 1, &truncated).is_err());
+        assert!(normalize(2025, 1, &truncated, None).is_err());
     }
 
     /// A stand-in for the Jolpica feed that counts requests and can answer slowly, with errors, or empty.
@@ -344,6 +462,7 @@ mod tests {
         requests: Arc<std::sync::atomic::AtomicUsize>,
         published: Arc<std::sync::atomic::AtomicBool>,
         failing: Arc<std::sync::atomic::AtomicBool>,
+        pit_stops_failing: Arc<std::sync::atomic::AtomicBool>,
     }
 
     async fn feed(slow_round: Option<u32>) -> Feed {
@@ -352,8 +471,27 @@ mod tests {
         let requests = Arc::new(AtomicUsize::new(0));
         let published = Arc::new(AtomicBool::new(false));
         let failing = Arc::new(AtomicBool::new(false));
+        let pit_stops_failing = Arc::new(AtomicBool::new(false));
         let (r, p, f) = (requests.clone(), published.clone(), failing.clone());
+        let pf = pit_stops_failing.clone();
         let app = Router::new().route(
+            "/{year}/{round}/pitstops/",
+            get(move |Path((year, round)): Path<(i32, u32)>| async move {
+                if pf.load(SeqCst) {
+                    return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+                }
+                // Round 3 has no pit-stop data yet; round 4's feed is broken; the rest stopped twice.
+                match round {
+                    4 => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+                    3 => Ok(Json(json!({"MRData":{"total":"0","RaceTable":{"Races":[]}}}))),
+                    _ => Ok(Json(json!({"MRData":{"total":"2","RaceTable":{"Races":[{
+                        "season":year.to_string(),"round":round.to_string(),
+                        "PitStops":[{"driverId":"aaa","stop":"1","lap":"20"},
+                                    {"driverId":"aaa","stop":"2","lap":"41"}]}]}}}))),
+                }
+            }),
+        )
+        .route(
             "/{year}/{round}/results/",
             get(move |Path((year, round)): Path<(i32, u32)>| {
                 let (r, p, f) = (r.clone(), p.clone(), f.clone());
@@ -366,7 +504,7 @@ mod tests {
                         return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
                     }
                     let record = json!({"position":"1","positionText":"1","points":"25","grid":"1","laps":"57",
-                        "status":"Finished","Driver":{"code":"AAA","givenName":"Alex","familyName":"Sample"},
+                        "status":"Finished","Driver":{"driverId":"aaa","code":"AAA","givenName":"Alex","familyName":"Sample"},
                         "Constructor":{"name":"Team"},"Time":{"time":"1:30:00.000"}});
                     let (races, total) = if p.load(SeqCst) {
                         (json!([{"season":year.to_string(),"round":round.to_string(),"Results":[record]}]), "1")
@@ -385,6 +523,7 @@ mod tests {
             requests,
             published,
             failing,
+            pit_stops_failing,
         }
     }
 
@@ -432,6 +571,53 @@ mod tests {
         assert_eq!(count(&feed), 2);
         results.load(2025, 1, false).await.unwrap();
         assert_eq!(count(&feed), 2, "a published classification stays cached");
+    }
+
+    #[tokio::test]
+    async fn pit_stops_ride_along_and_never_fail_the_classification() {
+        let feed = feed(None).await;
+        feed.published
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let results = client(&feed, Duration::from_secs(30));
+        let stopped = results.load(2025, 1, false).await.unwrap();
+        assert_eq!(stopped.entries[0].pit_stops, Some(2));
+        let no_data = results.load(2025, 3, false).await.unwrap();
+        assert_eq!(no_data.entries[0].pit_stops, None, "nothing published yet");
+        let broken = results.load(2025, 4, false).await.unwrap();
+        assert_eq!(
+            broken.entries.len(),
+            1,
+            "a pit-stop outage keeps the classification"
+        );
+        assert_eq!(broken.entries[0].pit_stops, None);
+    }
+
+    #[tokio::test]
+    async fn pit_stops_missing_after_an_outage_appear_once_the_source_recovers() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let feed = feed(None).await;
+        feed.published.store(true, SeqCst);
+        feed.pit_stops_failing.store(true, SeqCst);
+        let results = client(&feed, Duration::from_millis(300));
+        assert_eq!(
+            results.load(2025, 1, false).await.unwrap().entries[0].pit_stops,
+            None
+        );
+        feed.pit_stops_failing.store(false, SeqCst);
+        assert_eq!(
+            results.load(2025, 1, false).await.unwrap().entries[0].pit_stops,
+            None,
+            "not asked again before the cooldown"
+        );
+        tokio::time::sleep(Duration::from_millis(350)).await;
+        assert_eq!(
+            results.load(2025, 1, false).await.unwrap().entries[0].pit_stops,
+            Some(2),
+            "the counts arrive without waiting out the full results cache"
+        );
+        let asked = count(&feed);
+        results.load(2025, 1, false).await.unwrap();
+        assert_eq!(count(&feed), asked, "complete results stay cached");
     }
 
     #[tokio::test]

@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "15033CB876BF1D911ECEC4CE"
+               BlueprintIdentifier = "21D74859F40061310F8021B1"
                BuildableName = "FormulaLive.app"
                BlueprintName = "FormulaLive"
                ReferencedContainer = "container:FormulaLive.xcodeproj">
@@ -30,7 +30,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "15033CB876BF1D911ECEC4CE"
+            BlueprintIdentifier = "21D74859F40061310F8021B1"
             BuildableName = "FormulaLive.app"
             BlueprintName = "FormulaLive"
             ReferencedContainer = "container:FormulaLive.xcodeproj">
@@ -53,7 +53,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "15033CB876BF1D911ECEC4CE"
+            BlueprintIdentifier = "21D74859F40061310F8021B1"
             BuildableName = "FormulaLive.app"
             BlueprintName = "FormulaLive"
             ReferencedContainer = "container:FormulaLive.xcodeproj">
@@ -70,7 +70,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "15033CB876BF1D911ECEC4CE"
+            BlueprintIdentifier = "21D74859F40061310F8021B1"
             BuildableName = "FormulaLive.app"
             BlueprintName = "FormulaLive"
             ReferencedContainer = "container:FormulaLive.xcodeproj">

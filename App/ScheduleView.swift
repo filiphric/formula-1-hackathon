@@ -294,12 +294,27 @@ private struct WeekendCard: View {
             // The chevron's 44pt hit area is taller than the badge; pull the row back up so the card keeps its rhythm.
             .padding(.vertical, -RacingStyle.Space.s)
             Text(race.name).font(RacingStyle.Typography.display).racingHeading().multilineTextAlignment(.leading)
-            Text(race.circuit).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+            // The circuit's outline beside its name (the name wraps to make room); at accessibility text
+            // sizes the name needs the whole width, so the outline drops underneath.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: RacingStyle.Space.s) { circuitName; heroMinimap }
+            } else {
+                HStack(alignment: .center, spacing: RacingStyle.Space.m) { circuitName; Spacer(minLength: RacingStyle.Space.s); heroMinimap }
+            }
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .lastTextBaseline) { dates; Spacer(); countdown }
                 VStack(alignment: .leading, spacing: RacingStyle.Space.s) { dates; countdown }
             }
         }
+    }
+
+    private var circuitName: some View {
+        Text(race.circuit).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+            .multilineTextAlignment(.leading)
+    }
+
+    private var heroMinimap: some View {
+        CircuitMinimap(circuit: race.circuit, color: RacingStyle.textPrimary, size: CGSize(width: 112, height: 76), lineWidth: 3.5)
     }
 
     private var badge: some View {
@@ -335,7 +350,7 @@ private struct WeekendCard: View {
     @ViewBuilder private var row: some View {
         if typeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
-                HStack { roundNumber; Spacer(minLength: RacingStyle.Space.s); chevron }
+                HStack { roundNumber; Spacer(minLength: RacingStyle.Space.s); minimap; chevron }
                 rowTitle
                 meta
             }
@@ -347,10 +362,16 @@ private struct WeekendCard: View {
                     meta
                 }
                 Spacer(minLength: RacingStyle.Space.s)
+                minimap
                 chevron
             }
             .frame(minHeight: 44)
         }
+    }
+
+    /// The circuit's outline, as quiet as the rest of the row.
+    private var minimap: some View {
+        CircuitMinimap(circuit: race.circuit, color: isPast ? RacingStyle.textTertiary : secondary)
     }
 
     private var roundNumber: some View {
@@ -507,7 +528,7 @@ private struct ResultRow: View {
                     Image(systemName: "stopwatch").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
                 }
             }
-            Text(entry.team).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+            Text(entry.detailLine).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         }
     }
 

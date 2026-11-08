@@ -35,7 +35,11 @@ final class TimingStore {
                         case .string(let value): data = Data(value.utf8)
                         @unknown default: continue
                         }
-                        snapshot = try TimingSnapshot.decode(data)
+                        // Decode off the main actor so a large snapshot never stalls scrolling.
+                        let decoded = try await Task.detached(priority: .userInitiated) { try TimingSnapshot.decode(data) }.value
+                        // The endpoint may have changed while decoding; an old connection must not publish into the new one.
+                        try Task.checkCancellation()
+                        snapshot = decoded
                         connected = true
                         status = "Connected"
                         error = nil

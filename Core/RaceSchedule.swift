@@ -152,12 +152,15 @@ public struct ResultEntry: Codable, Identifiable, Sendable, Equatable {
     public let status: String
     public let points: Double
     public let fastestLap: Bool
+    /// How many times the car stopped in the pits; nil when the source has no pit-stop data for the race,
+    /// which is not the same as a car that never stopped.
+    public let pitStops: Int?
 
     public init(position: Int, positionText: String, code: String?, name: String, team: String, grid: Int?, laps: Int?,
-                time: String?, status: String, points: Double, fastestLap: Bool) {
+                time: String?, status: String, points: Double, fastestLap: Bool, pitStops: Int? = nil) {
         self.position = position; self.positionText = positionText; self.code = code; self.name = name
         self.team = team; self.grid = grid; self.laps = laps; self.time = time; self.status = status
-        self.points = points; self.fastestLap = fastestLap
+        self.points = points; self.fastestLap = fastestLap; self.pitStops = pitStops
     }
 
     public var isClassified: Bool { Int(positionText) != nil }
@@ -177,10 +180,24 @@ public struct ResultEntry: Codable, Identifiable, Sendable, Equatable {
         return points == points.rounded() ? String(Int(points)) : String(points)
     }
 
+    /// "No stops", "1 stop", "2 stops", or nil when the number of stops is not known.
+    public var pitStopsText: String? {
+        guard let pitStops, pitStops >= 0 else { return nil }
+        return pitStops == 0 ? "No stops" : "\(pitStops) \(pitStops == 1 ? "stop" : "stops")"
+    }
+
+    /// The caption under the driver's name: the team, then the pit stops when they are known.
+    public var detailLine: String {
+        [team, pitStopsText].compactMap { $0 }.joined(separator: " · ")
+    }
+
     public var spokenSummary: String {
         var parts = [isClassified ? "Position \(position)" : "Not classified", name, team, outcome]
         if let pointsText { parts.append("\(pointsText) \(pointsText == "1" ? "point" : "points")") }
         if fastestLap { parts.append("Fastest lap") }
+        if let pitStops, pitStops >= 0 {
+            parts.append(pitStops == 0 ? "No pit stops" : "\(pitStops) pit \(pitStops == 1 ? "stop" : "stops")")
+        }
         return parts.joined(separator: ", ")
     }
 }

@@ -200,3 +200,84 @@ private func overlapsCircle(_ rect: MarkerLabelPlacement.Rect, cx: Double, cy: D
     #expect(top.y >= 10 + 14)                      // no room above → below, still clear of the marker
     #expect(top.y >= mapBounds.y)
 }
+
+// MARK: Switching the timing column (interval, gap to leader, fastest lap)
+
+/// Third on the road: 7.5 s behind the leader, 1.25 s behind the car ahead, fastest lap 1:30.500
+/// but 1:31.300 on the last one.
+private func racer(position: Int = 3, gap: String? = "+7.500", interval: String? = "+1.250",
+                   bestLap: Double? = 90.5) throws -> TimingDriver {
+    var object: [String: Any] = ["number": 4, "name": "Lando Norris", "acronym": "NOR", "team": "McLaren",
+                                 "color": "FF8000", "position": position, "lapTime": 91.3, "compound": "SOFT"]
+    if let gap { object["gap"] = gap }
+    if let interval { object["interval"] = interval }
+    if let bestLap { object["bestLap"] = bestLap }
+    return try JSONDecoder().decode(TimingDriver.self, from: JSONSerialization.data(withJSONObject: object))
+}
+
+@Test func tappingCyclesIntervalThenGapToLeaderThenFastestLapThenBackAround() {
+    #expect(TimingMetric.allCases == [.interval, .gapToLeader, .fastestLap])
+    #expect(TimingMetric.interval.next == .gapToLeader)
+    #expect(TimingMetric.gapToLeader.next == .fastestLap)
+    #expect(TimingMetric.fastestLap.next == .interval)
+}
+
+@Test func eachMetricShowsItsOwnFigureForTheSameDriver() throws {
+    let driver = try racer()
+    #expect(driver.timingText(.interval) == "+1.250")
+    #expect(driver.timingText(.gapToLeader) == "+7.500")
+    #expect(driver.timingText(.fastestLap) == "1:30.500")
+    // The last-lap column is unaffected by the fastest lap.
+    #expect(driver.formattedLap == "1:31.300")
+}
+
+@Test func lappedCarsKeepTheirLapText() throws {
+    let driver = try racer(gap: "+2 LAPS", interval: "+1 LAP")
+    #expect(driver.timingText(.interval) == "+1 LAP")
+    #expect(driver.timingText(.gapToLeader) == "+2 LAPS")
+}
+
+@Test func missingFiguresShowADashInsteadOfAnotherMetrics() throws {
+    let driver = try racer(gap: "+7.500", interval: nil, bestLap: nil)
+    #expect(driver.timingText(.interval) == "—")
+    #expect(driver.timingText(.fastestLap) == "—")
+    #expect(try racer(interval: "  ").timingText(.interval) == "—")
+    #expect(try racer(bestLap: 0).timingText(.fastestLap) == "—")
+}
+
+@Test func theLeaderIsCrownedOnGapsButStillGetsAFastestLap() throws {
+    let leader = try racer(position: 1, gap: nil, interval: nil, bestLap: 89.25)
+    #expect(TimingMetric.interval.marksLeader && TimingMetric.gapToLeader.marksLeader)
+    #expect(!TimingMetric.fastestLap.marksLeader)
+    #expect(leader.timingText(.fastestLap) == "1:29.250")
+    #expect(leader.isLeader)
+}
+
+@Test func columnHeadingNamesTheMetricOnShow() {
+    #expect(TimingMetric.allCases.map(\.title) == ["Interval", "To leader", "Fastest lap"])
+    #expect(Set(TimingMetric.allCases.map(\.title)).count == 3)
+}
+
+@Test func oldBackendsWithoutTheNewFieldsStillDecode() throws {
+    let json = #"{"number":4,"name":"Lando Norris","acronym":"NOR","team":"McLaren","color":"FF8000","position":2,"gap":"+1.0"}"#
+    let driver = try JSONDecoder().decode(TimingDriver.self, from: Data(json.utf8))
+    #expect(driver.interval == nil && driver.bestLap == nil)
+    #expect(driver.timingText(.gapToLeader) == "+1.0")
+    #expect(driver.timingText(.fastestLap) == "—")
+}
+
+@Test func theRowIsSpokenWithTheMetricThatIsShowing() throws {
+    let driver = try racer()
+    #expect(driver.accessibilitySummary(showingGap: true, metric: .interval)
+            == "Position 3, Lando Norris, McLaren, 1.250 seconds behind the car ahead, last lap 1:31.300, Soft tyre")
+    #expect(driver.accessibilitySummary(showingGap: true, metric: .gapToLeader)
+            == "Position 3, Lando Norris, McLaren, 7.500 seconds behind the leader, last lap 1:31.300, Soft tyre")
+    #expect(driver.accessibilitySummary(showingGap: true, metric: .fastestLap)
+            == "Position 3, Lando Norris, McLaren, fastest lap 1:30.500, last lap 1:31.300, Soft tyre")
+    #expect(try racer(bestLap: nil).spokenTiming(.fastestLap) == "fastest lap unavailable")
+    #expect(try racer(position: 2, interval: "+1 LAP").spokenInterval == "1 lap behind the car ahead")
+    // Without a timing column nothing is said, whatever the metric.
+    #expect(!driver.accessibilitySummary(showingGap: false, metric: .fastestLap).contains("fastest"))
+    // The old one-argument form still reads the gap to the leader.
+    #expect(driver.accessibilitySummary(showingGap: true).contains("behind the leader"))
+}

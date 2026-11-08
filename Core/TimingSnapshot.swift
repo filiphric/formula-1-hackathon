@@ -8,12 +8,15 @@ public struct TimingSnapshot: Codable, Sendable {
     public let drivers: [TimingDriver]
     public let messages: [RaceMessage]
     public let track: TrackLayout?
+    /// Newest first. Absent from servers that predate team radio.
+    public let radios: [TeamRadio]
     /// Which sectors are under yellow and whether the whole track is red or under a safety car.
     /// Absent from servers that predate flag tracking, which reads as nothing flagged.
     public let flags: FlagStatus
 
     public init(mode: String, upstream: String, updatedAt: String?, session: RaceSession?,
-                drivers: [TimingDriver], messages: [RaceMessage], track: TrackLayout?, flags: FlagStatus = .clear) {
+                drivers: [TimingDriver], messages: [RaceMessage], track: TrackLayout?, radios: [TeamRadio] = [],
+                flags: FlagStatus = .clear) {
         self.mode = mode
         self.upstream = upstream
         self.updatedAt = updatedAt
@@ -21,6 +24,7 @@ public struct TimingSnapshot: Codable, Sendable {
         self.drivers = drivers
         self.messages = messages
         self.track = track
+        self.radios = radios
         self.flags = flags
     }
 
@@ -33,6 +37,7 @@ public struct TimingSnapshot: Codable, Sendable {
         drivers = try values.decode([TimingDriver].self, forKey: .drivers)
         messages = try values.decode([RaceMessage].self, forKey: .messages)
         track = try values.decodeIfPresent(TrackLayout.self, forKey: .track)
+        radios = try values.decodeIfPresent([TeamRadio].self, forKey: .radios) ?? []
         flags = (try? values.decodeIfPresent(FlagStatus.self, forKey: .flags)).flatMap { $0 } ?? .clear
     }
 
@@ -61,10 +66,17 @@ public struct TimingDriver: Codable, Identifiable, Sendable {
     public let lapTime: Double?
     public let compound: String?
     public let location: DriverLocation?
+    /// Gap to the car directly ahead. Absent from older backends, and for the leader.
+    public var interval: String? = nil
+    /// The driver's fastest completed lap of the session, in seconds. Absent from older backends.
+    public var bestLap: Double? = nil
 
-    public var formattedLap: String {
-        guard let lapTime, lapTime.isFinite, lapTime > 0 else { return "—" }
-        let milliseconds = Int((lapTime * 1000).rounded())
+    public var formattedLap: String { Self.format(lap: lapTime) }
+    public var formattedBestLap: String { Self.format(lap: bestLap) }
+
+    private static func format(lap seconds: Double?) -> String {
+        guard let seconds, seconds.isFinite, seconds > 0 else { return "—" }
+        let milliseconds = Int((seconds * 1000).rounded())
         return String(format: "%d:%02d.%03d", milliseconds / 60000,
                       (milliseconds / 1000) % 60, milliseconds % 1000)
     }
@@ -128,10 +140,17 @@ public struct TrackLayout: Codable, Sendable, Equatable {
         TrackProjection.rotate(point, degrees: rotationDegrees ?? 0)
     }
 
-    public static func parseDate(_ value: String) -> Date? {
+    /// Building an `ISO8601DateFormatter` is expensive and views parse timestamps many times per
+    /// render, so the two formatters are created once. `Formatter` is thread-safe for parsing.
+    private nonisolated(unsafe) static let fractionalParser: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        return formatter
+    }()
+    private nonisolated(unsafe) static let plainParser = ISO8601DateFormatter()
+
+    public static func parseDate(_ value: String) -> Date? {
+        fractionalParser.date(from: value) ?? plainParser.date(from: value)
     }
 
     public func projection(width: Double, height: Double) -> TrackProjection? {

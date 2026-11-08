@@ -33,10 +33,26 @@ private func results() throws -> RaceResults {
     #expect(entries[0].displayCode == "NOR")
 }
 
-@Test func spokenSummaryNamesPositionTeamOutcomePointsAndFastestLap() throws {
+@Test func spokenSummaryNamesPositionTeamOutcomePointsFastestLapAndPitStops() throws {
     let entries = try results().entries
-    #expect(entries[0].spokenSummary == "Position 1, Lando Norris, McLaren, 1:42:06.304, 25 points, Fastest lap")
-    #expect(entries[4].spokenSummary == "Not classified, Jack Doohan, Alpine F1 Team, Retired")
+    #expect(entries[0].spokenSummary == "Position 1, Lando Norris, McLaren, 1:42:06.304, 25 points, Fastest lap, 2 pit stops")
+    #expect(entries[4].spokenSummary == "Not classified, Jack Doohan, Alpine F1 Team, Retired, No pit stops")
+}
+
+@Test func pitStopsAreReadAndWordedForEveryCountIncludingUnknown() throws {
+    let entries = try results().entries
+    #expect(entries.map(\.pitStops) == [2, 1, 3, nil, 0])
+    #expect(entries.map(\.pitStopsText) == ["2 stops", "1 stop", "3 stops", nil, "No stops"])
+    #expect(entries[0].detailLine == "McLaren · 2 stops")
+    #expect(entries[3].detailLine == "Williams", "unknown stops are left out, not shown as none")
+}
+
+@Test func spokenSummaryIncludesPitStopsOnlyWhenKnown() throws {
+    let entries = try results().entries
+    #expect(entries[0].spokenSummary.hasSuffix("Fastest lap, 2 pit stops"))
+    #expect(entries[1].spokenSummary.hasSuffix("18 points, 1 pit stop"))
+    #expect(entries[4].spokenSummary == "Not classified, Jack Doohan, Alpine F1 Team, Retired, No pit stops")
+    #expect(!entries[3].spokenSummary.contains("stop"))
 }
 
 @Test func resultsEndpointKeepsHostAndTLSWithoutTimingQuery() {
