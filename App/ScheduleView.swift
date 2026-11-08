@@ -528,7 +528,7 @@ private struct ResultRow: View {
                     Image(systemName: "stopwatch").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
                 }
             }
-            Text(entry.team).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+            Text(entry.detailLine).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         }
     }
 
