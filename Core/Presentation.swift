@@ -320,11 +320,9 @@ extension TrackLayout {
     }
 }
 
-/// Keeps overlapping driver markers legible. Markers keep their place unless one would sit
-/// closer than `minDistance` to a marker already placed; then it slides directly away from the
-/// nearest one until exactly `minDistance` apart, so a marker that closes in on another is drawn
-/// moving smoothly rather than snapping. Only if that spot is also taken (a crowd) does it move to
-/// the nearest free spot on an expanding ring. Deterministic: the same input order always gives the same output.
+/// Keeps overlapping driver markers legible: a marker that would crowd one already placed
+/// slides away from it, so nearby cars stay apart without jumping. The same input order always
+/// gives the same layout.
 public enum MarkerSpread {
     public static func separated(_ points: [TrackPoint], minDistance: Double, bounds: MarkerLabelPlacement.Rect? = nil) -> [TrackPoint] {
         var placed: [TrackPoint] = []
