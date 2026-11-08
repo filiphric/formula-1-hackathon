@@ -68,7 +68,7 @@ extension FeedStatus {
         switch kind {
         case .live: return Color(RacingPalette.statusLive)
         case .stale: return Color(RacingPalette.statusStale)
-        case .offline, .connecting: return Color(RacingPalette.statusOffline)
+        case .ended, .offline, .connecting: return Color(RacingPalette.statusOffline)
         }
     }
 
@@ -78,6 +78,7 @@ extension FeedStatus {
         switch kind {
         case .live: return "dot.radiowaves.left.and.right"
         case .stale: return "clock.badge.exclamationmark"
+        case .ended: return "flag.checkered"
         case .offline: return "wifi.slash"
         case .connecting: return "arrow.triangle.2.circlepath"
         }

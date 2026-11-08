@@ -27,6 +27,26 @@ import Testing
     #expect(status(upstream: "subscribing", date: nil).timingDetail == nil)
 }
 
+@Test func connectedFeedAfterTheSessionEndsIsEndedNotStale() {
+    let now = TrackLayout.parseDate("2026-11-08T16:00:00Z")!
+    func status(end: String, updated: String = "2026-11-07T20:32:43Z", upstream: String = "connected") -> FeedStatus {
+        FeedStatus.resolve(snapshot: TimingSnapshot(mode: "live", upstream: upstream, updatedAt: updated,
+            session: RaceSession(name: "Qualifying", circuit: "Interlagos", start: "2026-11-07T19:00:00Z", end: end),
+            drivers: [], messages: [], track: nil), connected: true, hasError: false, now: now)
+    }
+    // Opened the day after qualifying: the server is fine, there is just no session on.
+    let ended = status(end: "2026-11-07T20:30:00Z")
+    #expect(ended.kind == .ended)
+    #expect(ended.label == "SESSION ENDED")
+    #expect(ended.timingDetail == "Last timing 19 h 27 min old")
+    // A session still running whose timing went quiet is genuinely stale.
+    #expect(status(end: "2026-11-08T17:00:00Z").kind == .stale)
+    // A fresh feed stays live even when it runs past the scheduled end.
+    #expect(status(end: "2026-11-08T15:00:00Z", updated: "2026-11-08T15:59:50Z").kind == .live)
+    // A server that is itself in trouble is still stale, not ended.
+    #expect(status(end: "2026-11-07T20:30:00Z", upstream: "reconnecting").kind == .stale)
+}
+
 @Test func eventScreenSwipesFromRunningOrderToLiveTrackToRaceControl() {
     // The request: current order on one page, the live track on the next, race control, then team radio, then the live championship.
     #expect(DashboardPage.allCases == [.order, .track, .raceControl, .radio, .championship])

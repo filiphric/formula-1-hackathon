@@ -477,6 +477,7 @@ extension FeedStatus {
     public var timingDetail: String? {
         switch kind {
         case .stale: ageText.map { "Timing \($0) old" } ?? "Timing age unknown"
+        case .ended: ageText.map { "Last timing \($0) old" } ?? "No session in progress"
         case .offline: hasSnapshot ? "Reconnecting…" : "No timing received"
         case .live, .connecting: nil
         }

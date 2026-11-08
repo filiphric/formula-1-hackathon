@@ -79,10 +79,10 @@ extension RaceMessage {
     }
 }
 
-/// One answer to "can I trust what's on screen?": demo, live, stale or offline.
+/// One answer to "can I trust what's on screen?": demo, live, stale, ended or offline.
 /// Colour is only one of its channels; every state also has its own label and symbol.
 public struct FeedStatus: Equatable, Sendable {
-    public enum Kind: Sendable, Equatable { case live, stale, offline, connecting }
+    public enum Kind: Sendable, Equatable { case live, stale, ended, offline, connecting }
 
     public let kind: Kind
     public let isDemo: Bool
@@ -114,7 +114,11 @@ public struct FeedStatus: Equatable, Sendable {
         }
         if snapshot.upstream != "connected" { return Self(kind: .stale, isDemo: false, updatedAt: updated, age: age, hasSnapshot: true) }
         guard let age else { return Self(kind: .stale, isDemo: false, updatedAt: nil, age: nil, hasSnapshot: true) }
-        return Self(kind: age > staleAfter ? .stale : .live, isDemo: false, updatedAt: updated, age: age, hasSnapshot: true)
+        if age <= staleAfter { return Self(kind: .live, isDemo: false, updatedAt: updated, age: age, hasSnapshot: true) }
+        // The server is healthy and connected; it just has nothing newer because the session is over (the app is
+        // opened between sessions). Only a session still in progress with silent timing is genuinely stale.
+        let sessionOver = snapshot.session.flatMap { TrackLayout.parseDate($0.end) }.map { $0 < now } ?? false
+        return Self(kind: sessionOver ? .ended : .stale, isDemo: false, updatedAt: updated, age: age, hasSnapshot: true)
     }
 
     /// How old the timing is in words ("45 s", "38 min", "1 h 12 min"); nil when the age is unknown.
@@ -126,6 +130,7 @@ public struct FeedStatus: Equatable, Sendable {
         switch kind {
         case .live: base = "LIVE"
         case .stale: base = "STALE"
+        case .ended: base = "SESSION ENDED"
         case .offline: base = "OFFLINE"
         case .connecting: base = "CONNECTING"
         }
@@ -141,6 +146,7 @@ public struct FeedStatus: Equatable, Sendable {
         case (true, _): return "Demo data, and the connection to the timing server is down."
         case (false, .live): return ageText.map { "Live. Last timing \($0) ago." } ?? "Live."
         case (false, .stale): return ageText.map { "Stale. No new timing for \($0)." } ?? "Stale. Timing may be out of date."
+        case (false, .ended): return ageText.map { "Session ended. Last timing was \($0) ago." } ?? "Session ended."
         case (false, .offline): return "Offline. Not connected to the timing server."
         case (false, .connecting): return "Connecting to the timing server."
         }
