@@ -1,4 +1,4 @@
-use crate::{schedule::Calendar, state::TimingState};
+use crate::{results::Results, schedule::Calendar, state::TimingState};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -20,6 +20,7 @@ struct AppState {
     timing: SharedState,
     shutdown: watch::Receiver<bool>,
     calendar: Arc<Calendar>,
+    results: Arc<Results>,
 }
 
 pub fn router(timing: SharedState, shutdown: watch::Receiver<bool>) -> Router {
@@ -27,11 +28,13 @@ pub fn router(timing: SharedState, shutdown: watch::Receiver<bool>) -> Router {
         timing,
         shutdown,
         calendar: Arc::new(Calendar::default()),
+        results: Arc::new(Results::default()),
     };
     Router::new()
         .route("/health", get(health))
         .route("/live", get(upgrade))
         .route("/schedule/{year}", get(schedule))
+        .route("/results/{year}/{round}", get(results))
         .with_state(state)
 }
 
@@ -50,6 +53,28 @@ async fn schedule(Path(year): Path<i32>, State(state): State<AppState>) -> impl 
         Err(_) => (
             StatusCode::BAD_GATEWAY,
             Json(json!({"error":"Calendar unavailable. Try again later."})),
+        )
+            .into_response(),
+    }
+}
+
+async fn results(
+    Path((year, round)): Path<(i32, u32)>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    if !crate::results::valid_race(year, round) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"Unsupported race"})),
+        )
+            .into_response();
+    }
+    let demo = state.timing.read().await.mode == "demo";
+    match state.results.load(year, round, demo).await {
+        Ok(results) => Json(results).into_response(),
+        Err(_) => (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error":"Results unavailable. Try again later."})),
         )
             .into_response(),
     }

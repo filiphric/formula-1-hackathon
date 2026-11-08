@@ -71,6 +71,28 @@ async fn demo_health_websocket_contract_and_shutdown() {
                 .status(),
             400
         );
+        let results: serde_json::Value = http
+            .get(format!("http://{address}/results/2026/1"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(results["mode"], "demo");
+        assert_eq!(results["round"], 1);
+        assert_eq!(results["entries"][0]["position"], 1);
+        for path in ["/results/1900/1", "/results/2026/0", "/results/2026/99"] {
+            assert_eq!(
+                http.get(format!("http://{address}{path}"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                400,
+                "{path}"
+            );
+        }
         let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}/live"))
             .await
             .unwrap();
