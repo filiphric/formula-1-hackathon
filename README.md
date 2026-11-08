@@ -70,6 +70,41 @@ Demo mode animates four markers around an explicitly fictional circuit, without
 contacting OpenF1. It does not reproduce a real race. Live location delivery needs
 a paid OpenF1 connection and an active session.
 
+## Flags
+
+A yellow or red flag shows on every page of the race centre, in a banner under the session title, and on
+the track map. The banner lists what is out in words and a symbol as well as colour: a red flag, the
+safety car or virtual safety car, and the sectors under yellow or double yellow ("Double yellow ·
+sectors 12, 13"). On the map a red flag, safety car or virtual safety car colours the whole circuit (the
+virtual safety car dashed), and each yellow sector lights up its own stretch of track with its number; a
+double yellow also gets a dashed stripe. Flags from a feed that is stale or offline are labelled *Last
+known* and drawn fainter, demo flags say *Demo · simulated flags*, and the yellow and safety-car flags of a
+finished session are not shown (a red flag is, because it is what extends a session). The banner sits under the
+app bar on both tabs.
+
+The backend works out what is flagged from the session's whole `race_control` history (the app only
+lists the newest 100 messages, and a session can run past that) and sends it as an optional `flags`
+object, so older servers and older apps keep working:
+
+```json
+"flags": {"track": "clear | red | safetyCar | virtualSafetyCar", "trackSince": "…" | null,
+          "sectors": [{"sector": 12, "flag": "yellow | doubleYellow", "since": "…"}]}
+```
+
+Rules, taken from real OpenF1 sessions: a sector is flagged from its `YELLOW`/`DOUBLE YELLOW` message
+(`scope: "Sector"`) until its own `CLEAR`; `TRACK CLEAR` withdraws every flag and ends a red flag or
+safety car; `VSC ENDING` ends the virtual safety car (it is often not followed by `TRACK CLEAR`);
+`SESSION FINISHED` ends everything raised before it, and `SESSION STARTED` ends a red flag whose `TRACK CLEAR` was missed; blue and black-and-white flags are shown to one
+driver and say nothing about the track.
+
+Race control names a sector by number only. `Core/MarshalSectorData.swift` holds where each marshal
+sector starts, per circuit, from MultiViewer's public circuit data (generated, see
+`Scripts/generate-marshal-sectors.py`). A sector is the stretch of the recorded lap between its start and
+the next sector's start. Circuits whose published layout disagrees with the sector numbers race control
+sent this season, and circuits MultiViewer does not have yet, are left out; for those the banner still
+names the flagged sectors and the map says their positions are not available. Positions are only as
+good as that data and the approximate outline, so treat a highlighted stretch as indicative.
+
 ## Schedule
 
 The **Schedule** tab shows each season from 2023 through next year, with All,
@@ -189,6 +224,8 @@ to the internet.
 - `Core/` — Codable/Sendable timing models, also available as a Swift package.
 - `Backend/` — Rust server: Tokio, Axum HTTP/WebSockets, rumqttc MQTT/TLS, and reqwest REST.
 - `Tests/` — Swift decoding/formatting tests.
+- `Scripts/generate-marshal-sectors.py` — regenerates the marshal sector starts from public MultiViewer
+  data (needs network access).
 - `Scripts/generate-project.rb` — optional Xcode project regeneration (Ruby `xcodeproj` gem).
   The generated project is checked in; regeneration is not needed to build.
 

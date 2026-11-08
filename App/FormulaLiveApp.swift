@@ -38,6 +38,8 @@ private struct RootView: View {
                                           hasError: store.error != nil, now: context.date)
             VStack(spacing: 0) {
                 AppBar(feed: feed, tab: $tab, showsTabs: tabsInBar, showSettings: { connection.beginEditing(); showingSettings = true })
+                // Under the bar and outside the scrolling pages, so a flag is in view on every tab and while scrolling.
+                FlagBanner(snapshot: store.snapshot, feed: feed, now: context.date)
                 content(feed: feed)
             }
         }

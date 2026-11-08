@@ -8,6 +8,33 @@ public struct TimingSnapshot: Codable, Sendable {
     public let drivers: [TimingDriver]
     public let messages: [RaceMessage]
     public let track: TrackLayout?
+    /// Which sectors are under yellow and whether the whole track is red or under a safety car.
+    /// Absent from servers that predate flag tracking, which reads as nothing flagged.
+    public let flags: FlagStatus
+
+    public init(mode: String, upstream: String, updatedAt: String?, session: RaceSession?,
+                drivers: [TimingDriver], messages: [RaceMessage], track: TrackLayout?, flags: FlagStatus = .clear) {
+        self.mode = mode
+        self.upstream = upstream
+        self.updatedAt = updatedAt
+        self.session = session
+        self.drivers = drivers
+        self.messages = messages
+        self.track = track
+        self.flags = flags
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try values.decode(String.self, forKey: .mode)
+        upstream = try values.decode(String.self, forKey: .upstream)
+        updatedAt = try values.decodeIfPresent(String.self, forKey: .updatedAt)
+        session = try values.decodeIfPresent(RaceSession.self, forKey: .session)
+        drivers = try values.decode([TimingDriver].self, forKey: .drivers)
+        messages = try values.decode([RaceMessage].self, forKey: .messages)
+        track = try values.decodeIfPresent(TrackLayout.self, forKey: .track)
+        flags = (try? values.decodeIfPresent(FlagStatus.self, forKey: .flags)).flatMap { $0 } ?? .clear
+    }
 
     public static func decode(_ data: Data) throws -> Self {
         try JSONDecoder().decode(Self.self, from: data)
@@ -150,6 +177,19 @@ public struct TrackProjection: Sendable {
 }
 
 extension TimingSnapshot {
+    /// The flags worth showing now. Once a real session is past its scheduled end and no car is reporting a
+    /// position, whatever yellow or safety car was last flagged is history, so nothing is shown. A red flag
+    /// is the exception: it is what extends a session past its schedule, and cars at rest may report nothing.
+    /// Demo flags are always shown.
+    public func activeFlags(at now: Date) -> FlagStatus {
+        if mode == "demo" || flags.track == .red { return flags }
+        if let end = session.flatMap({ TrackLayout.parseDate($0.end) }), now > end,
+           !drivers.compactMap(\.location).contains(where: { !$0.isStale(at: now) }) {
+            return .clear
+        }
+        return flags
+    }
+
     public func trackStatus(at now: Date, connected: Bool) -> String {
         if mode == "demo" { return "DEMO · Simulated positions" }
         guard connected, upstream == "connected" else { return "Disconnected · Last known positions" }
