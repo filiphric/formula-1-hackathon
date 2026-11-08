@@ -20,12 +20,3 @@ authorization; do not ask again.
   user's trusted network (the user has accepted this for live data), and never commit `.env`.
 - A simulator build does not fulfil this. Report the install and launch result separately, and
   state the exact blocker (locked phone, untrusted Mac, signing) if a step fails.
-
-## Pull request review and merge
-
-- When a task is complete, commit, push and open a pull request.
-- Read the structured Qodo review with the `qodo-review-resolver` skill. **Fix only High and Critical
-  findings.** Medium, Low and informational findings are not required to be fixed and do not block the merge.
-- **Merge automatically** once the required checks pass and no High or Critical finding is open. Do not wait
-  for a Qodo review of the latest head when none of its findings is High or Critical.
-- Never dismiss a finding merely to clear the review; dismissal still needs the user's explicit go.
