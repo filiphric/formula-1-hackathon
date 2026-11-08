@@ -26,6 +26,8 @@ private struct RootView: View {
     @State private var tab = AppSection(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .live
 
     @State private var connection = ServerConnection(endpoint: "")
+    /// The saved address is read once at launch. After that an empty address is a real choice and gets validated, not skipped.
+    @State private var seeded = false
 
     var body: some View {
         // One clock drives the app bar's pill and the session hero, so they can never disagree.
@@ -46,10 +48,11 @@ private struct RootView: View {
             }
         }
         .task {
-            if connection.activeEndpoint.isEmpty { connection = ServerConnection(endpoint: endpoint) }
+            connection = ServerConnection(endpoint: endpoint)
+            seeded = true
         }
-        .task(id: connection.activeEndpoint) {
-            guard !connection.activeEndpoint.isEmpty else { return }
+        .task(id: "\(seeded)|\(connection.activeEndpoint)") {
+            guard seeded else { return }
             await store.run(endpoint: connection.activeEndpoint)
         }
         .onChange(of: connection.activeEndpoint) { _, value in endpoint = value }

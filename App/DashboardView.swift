@@ -68,7 +68,8 @@ struct DashboardView: View {
         } else if feed.kind == .stale, let age = feed.age {
             Text("\(separator)No new timing for \(feed.ageText ?? "\(Int(age)) s")").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
         } else if feed.kind == .offline {
-            Text("\(separator)Showing last timing received. Reconnecting…").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+            // With no snapshot there is nothing to show "last" of, so don't claim there is.
+            Text("\(separator)\(store.snapshot == nil ? "No timing received" : "Showing last timing received. Reconnecting…")").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
         } else if let date = feed.updatedAt {
             Text("\(separator)Updated \(date.formatted(date: .omitted, time: .standard))").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         }
