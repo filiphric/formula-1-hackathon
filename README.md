@@ -47,6 +47,12 @@ seconds, and the view identifies disconnected, stale, future and ended sessions.
 Drivers without coordinates are listed as unavailable. Fresh coordinates can keep
 an extended session live past its scheduled end.
 
+Circuit orientation uses the circuit/year rotation from the public MultiViewer API,
+as referenced by OpenF1 and FastF1. The backend sends optional `rotationDegrees`;
+the app rotates the outline, cars and start/finish together before fitting the map.
+Older servers and metadata outages show “Orientation unverified · Raw telemetry”;
+missing metadata retries on the next track refresh. Demo geometry stays fictional.
+
 The outline is a completed, non-out-lap location trace from the current session,
 with at most 600 points. Up to three recent laps are tried if a trace is sparse. It appears once a sufficiently complete timed lap is
 available and retries every minute while unavailable. Coordinates are approximate,
@@ -73,7 +79,15 @@ timing JSON contract. In normal mode it uses the public
 so calendar requests do not send OpenF1 credentials. Seasons are cached in memory
 for 15 minutes. If refresh fails, the last fetched calendar is returned with
 `stale: true`; without cached data the server returns HTTP 502 and the app offers
-retry. The app displays the source, fetch time and stale warning. Use Refresh to
+retry. The app also retains the visible season if its own refresh cannot reach the
+backend, showing a saved-data warning; changing server or season clears that view.
+Both tabs use the server confirmed with Connect, and prefixed deployment URLs
+(e.g. `/formula/live`) retain their prefix for calendar requests. Failed refreshes have a 30-second retry cooldown, and requests for one
+season do not block cached calendars for another. The app displays the source, fetch time and stale warning. Client expiration uses
+the backend's remaining cache lifetime (`expiresIn`) and monotonic elapsed time
+from the request start. Device/server clock skew does not label fresh calendars
+stale, and a warm server cache does not receive a new 15-minute window. Responses
+without a remaining lifetime are conservatively shown as stale. Use Refresh to
 check again after the cache interval. Restarting the backend clears this cache.
 
 `--demo` returns two explicitly fictional sample weekends per selected season,
