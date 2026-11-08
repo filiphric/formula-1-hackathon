@@ -133,3 +133,12 @@ private func trackOfAnotherCircuit() throws -> TrackLayout {
     #expect(MarshalSectors.starts(forCircuit: " Interlagos \n")?.count == 16)
     #expect(MarshalSectors.starts(forCircuit: "Interlagos Grand Prix") == nil)
 }
+
+@Test func flaggedSectorsTheTableHasNoTrackForAreReportedNotDropped() throws {
+    let sectors = try #require(MarshalSectors.runs(starts: [point(50, 0), point(100, 50), point(50, 100), point(0, 50)], along: square))
+    let flagged = [SectorFlag(sector: 9, flag: .yellow), SectorFlag(sector: 2, flag: .yellow),
+                   SectorFlag(sector: 17, flag: .doubleYellow), SectorFlag(sector: 0, flag: .yellow)]
+    // The square has sectors 1 to 4; race control named 9 and 17, which it does not have.
+    #expect(sectors.unmapped(flagged) == [0, 9, 17])
+    #expect(sectors.unmapped([SectorFlag(sector: 3, flag: .yellow)]).isEmpty)
+}

@@ -1,4 +1,4 @@
-use crate::flags::{flag_status, FlagStatus};
+use crate::flags::{affects_flags, flag_status, FlagStatus};
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -125,7 +125,10 @@ pub struct DriverLocation {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TrackLayout {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotation_degrees: Option<f64>,
     pub source: String,
     pub points: Vec<TrackPoint>,
 }
@@ -300,7 +303,8 @@ impl TimingState {
         if bucket.len() > limit {
             if let Some(oldest) = bucket
                 .iter()
-                .min_by_key(|(_, r)| event_date(r))
+                // Messages that cannot change a flag go first, so a long-running flag is not forgotten.
+                .min_by_key(|(_, r)| (topic == "race_control" && affects_flags(r), event_date(r)))
                 .map(|(k, _)| k.clone())
             {
                 bucket.remove(&oldest);
@@ -542,6 +546,7 @@ impl TimingState {
             );
         }
         state.track = Some(TrackLayout {
+            rotation_degrees: None,
             source: "Fictional demo circuit".into(),
             points: (0..=180)
                 .map(|i| demo_point(f64::from(i) / 180.0))

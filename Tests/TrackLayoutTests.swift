@@ -62,46 +62,73 @@ private func trackSnapshot(mode: String = "live", upstream: String = "connected"
     #expect(try trackSnapshot().trackStatus(at: stale, connected: true) == "Stale · No recent driver locations")
 }
 
-// MARK: Circuit orientation
-// OpenF1 coordinates are in the timing system's own frame, so a circuit drawn raw can face any way.
-// Each circuit has a rotation (degrees, counter-clockwise, y up) that turns it to the official map.
-
-@Test func knownCircuitsHaveTheirOfficialMapRotationAndUnknownOnesAreLeftAlone() {
-    #expect(CircuitOrientation.rotation(forCircuit: "Interlagos") == 258)
-    #expect(CircuitOrientation.rotation(forCircuit: "Monza") == 95)
-    #expect(CircuitOrientation.rotation(forCircuit: "Austin") == 0)
-    #expect(CircuitOrientation.rotation(forCircuit: "Demo Grand Prix") == 0)
-    #expect(CircuitOrientation.rotation(forCircuit: "Somewhere new") == 0)
-    #expect(CircuitOrientation.rotation(forCircuit: nil) == 0)
+// P-92: a one-second update from x=0 to x=100 must show x=50 halfway,
+// then stop at x=100; it must never invent motion after the last sample.
+@Test func driverMotionIsContinuousBoundedAndRetargetsWithoutJumping() throws {
+    let time = try #require(TrackLayout.parseDate("2026-11-07T12:00:00Z"))
+    func location(_ x: Double, _ second: Int) throws -> DriverLocation {
+        try JSONDecoder().decode(DriverLocation.self, from: Data("""
+        {"x":\(x),"y":20,"date":"2026-11-07T12:00:0\(second)Z"}
+        """.utf8))
+    }
+    var motion = DriverMotion()
+    motion.receive(try location(0, 0), at: time)
+    motion.receive(try location(100, 1), at: time.addingTimeInterval(1))
+    #expect(motion.point(at: time.addingTimeInterval(1))?.x == 0)
+    #expect(motion.point(at: time.addingTimeInterval(1.5))?.x == 50)
+    motion.receive(try location(150, 2), at: time.addingTimeInterval(1.5))
+    #expect(motion.point(at: time.addingTimeInterval(1.5))?.x == 50)
+    #expect(motion.point(at: time.addingTimeInterval(2))?.x == 100)
+    #expect(motion.point(at: time.addingTimeInterval(9))?.x == 150)
+    motion.receive(try location(10, 1), at: time.addingTimeInterval(2))
+    #expect(motion.point(at: time.addingTimeInterval(9))?.x == 150)
+    #expect(motion.point(at: time.addingTimeInterval(2), animated: false)?.x == 150)
+    motion.receive(try location(300, 8), at: time.addingTimeInterval(8))
+    #expect(motion.point(at: time.addingTimeInterval(8))?.x == 300)
+    motion = DriverMotion()
+    motion.receive(try location(500, 9), at: time.addingTimeInterval(9))
+    #expect(motion.point(at: time.addingTimeInterval(9))?.x == 500)
 }
 
-@Test func rotationTurnsTheProjectionAndTheBoundingBoxTogether() throws {
-    let track = try #require(try trackSnapshot().track)   // x -100...100, y -50...50
-    // A quarter turn counter-clockwise (y up) sends the east end of the circuit to the top.
-    let turned = try #require(track.projection(width: 300, height: 400, rotationDegrees: 90))
-    let east = try #require(turned.project(x: 100, y: 0))
-    let west = try #require(turned.project(x: -100, y: 0))
-    #expect(abs(east.x - 150) < 0.001 && abs(east.y - 32) < 0.001)
-    #expect(abs(west.x - 150) < 0.001 && abs(west.y - 368) < 0.001)
-    // The 2:1 circuit becomes 1:2, and no rotation leaves the old answer untouched.
-    #expect(abs(try #require(track.aspectRatio(rotationDegrees: 90)) - 0.5) < 0.001)
-    #expect(track.aspectRatio(rotationDegrees: 0) == track.aspectRatio)
-    let plain = try #require(track.projection(width: 400, height: 300))
-    let zero = try #require(track.projection(width: 400, height: 300, rotationDegrees: 0))
-    #expect(plain.project(x: -100, y: 50) == zero.project(x: -100, y: 50))
+@Test func cachedLocationTimestampPreservesTheWireContract() throws {
+    let location = DriverLocation(x: 12, y: 34, date: "2026-11-07T12:00:01.250Z")
+    let encoded = try JSONEncoder().encode(location)
+    let keys = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+    #expect(Set(keys.keys) == ["x", "y", "date"])
+    let decoded = try JSONDecoder().decode(DriverLocation.self, from: encoded)
+    #expect(decoded.timestamp == TrackLayout.parseDate("2026-11-07T12:00:01.250Z"))
+    #expect(decoded.timestamp == location.timestamp)
 }
 
-@Test func interlagosRunsItsPitStraightAlongTheTopAndIsWiderThanTall() throws {
-    let url = try #require(Bundle.module.url(forResource: "interlagos-track", withExtension: "json", subdirectory: "Fixtures"))
-    let track = try JSONDecoder().decode(TrackLayout.self, from: Data(contentsOf: url))
-    let rotation = CircuitOrientation.rotation(forCircuit: "Interlagos")
-    // Raw, the circuit is a tall portrait with the start line on its left edge.
-    #expect(try #require(track.aspectRatio) < 0.7)
-    // Oriented like the official map it is landscape, and the start/finish line is in the top fifth of the circuit.
-    #expect(try #require(track.aspectRatio(rotationDegrees: rotation)) > 1.3)
-    let projection = try #require(track.projection(width: 400, height: 400, rotationDegrees: rotation))
-    let start = try #require(projection.project(x: track.points[0].x, y: track.points[0].y))
-    let drawn = track.points.compactMap { projection.project(x: $0.x, y: $0.y) }
-    let top = try #require(drawn.map(\.y).min()), bottom = try #require(drawn.map(\.y).max())
-    #expect(start.y - top < (bottom - top) * 0.2)
+@Test func correctionsReplaceEqualTimestampAndStaleMotionResets() throws {
+    let time = try #require(TrackLayout.parseDate("2026-11-07T12:00:00Z"))
+    var motion = DriverMotion()
+    motion.receive(DriverLocation(x: 0, y: 1, date: "2026-11-07T12:00:00Z"), at: time)
+    motion.receive(DriverLocation(x: 50, y: 1, date: "2026-11-07T12:00:00Z"), at: time)
+    #expect(motion.point(at: time)?.x == 50)
+    // Old target is 11 seconds old; new sample is 9 seconds old and still fresh.
+    // Their two-second event gap must not animate from an already stale position.
+    motion.receive(DriverLocation(x: 100, y: 1, date: "2026-11-07T12:00:02Z"), at: time.addingTimeInterval(11))
+    #expect(motion.point(at: time.addingTimeInterval(11))?.x == 100)
+    motion.receive(DriverLocation(x: 500, y: 1, date: "2026-11-07T12:00:03Z"), at: time.addingTimeInterval(11), animated: false)
+    #expect(motion.point(at: time.addingTimeInterval(11))?.x == 500)
+}
+
+// A 90° CCW telemetry rotation sends east to north (up on screen),
+// and turns a 2:1 bounding box into 1:2. These expectations follow the
+// requested shared circuit orientation, independent of projection internals.
+@Test func rotatesOutlineAndCarsBeforeFittingTheViewport() throws {
+    let track = try JSONDecoder().decode(TrackLayout.self, from: Data(#"{"source":"test","rotationDegrees":90,"points":[{"x":0,"y":0},{"x":200,"y":0},{"x":200,"y":100},{"x":0,"y":100}]}"#.utf8))
+    #expect(abs(try #require(track.aspectRatio) - 0.5) < 0.00001)
+    let projection = try #require(track.projection(width: 300, height: 400))
+    let start = try #require(projection.project(x: 0, y: 0))
+    let east = try #require(projection.project(x: 200, y: 0))
+    #expect(abs(start.x - east.x) < 0.00001)
+    #expect(east.y < start.y)
+    #expect(abs(east.y - 32) < 0.00001)
+    #expect(abs(start.y - 368) < 0.00001)
+    let north = try #require(projection.project(x: 0, y: 100))
+    #expect(north.x < start.x)
+    let legacy = try #require(try trackSnapshot().track)
+    #expect(legacy.rotationDegrees == nil)
 }

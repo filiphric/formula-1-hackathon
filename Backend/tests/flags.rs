@@ -348,3 +348,48 @@ fn a_clear_snapshot_serialises_an_explicit_null_for_the_track_time() {
     assert!(value["flags"]["trackSince"].is_null());
     assert_eq!(value["flags"]["sectors"], json!([]));
 }
+
+#[test]
+fn a_flag_out_for_longer_than_the_whole_history_is_not_forgotten() {
+    // More than the 1000 messages kept: the yellow's opening message must outlive the blue-flag flood.
+    let mut state = state();
+    yellow(&mut state, "10:00:00", 7);
+    for i in 0..1100 {
+        send(
+            &mut state,
+            &format!("11:{:02}:{:02}", (i / 60) % 60, i % 60),
+            json!({"category":"Flag","flag":"BLUE","scope":"Driver","driver_number":4,
+                   "message":format!("WAVED BLUE FLAG {i}")}),
+        );
+    }
+    assert_eq!(
+        sectors(&state.snapshot().flags),
+        vec![(7, SectorFlagKind::Yellow)]
+    );
+    clear_sector(&mut state, "12:30:00", 7);
+    assert!(state.snapshot().flags.sectors.is_empty());
+}
+
+#[test]
+fn a_red_flag_ends_when_the_session_starts_again_even_without_a_track_clear() {
+    let mut state = state();
+    red(&mut state, "13:04:08");
+    send(
+        &mut state,
+        "13:32:00",
+        json!({"category":"SessionStatus","message":"SESSION STARTED"}),
+    );
+    assert_eq!(state.snapshot().flags.track, TrackFlag::Clear);
+}
+
+#[test]
+fn a_session_start_does_not_end_a_safety_car() {
+    let mut state = state();
+    safety_car(&mut state, "14:20:02", "SAFETY CAR DEPLOYED");
+    send(
+        &mut state,
+        "14:21:00",
+        json!({"category":"SessionStatus","message":"SESSION STARTED"}),
+    );
+    assert_eq!(state.snapshot().flags.track, TrackFlag::SafetyCar);
+}

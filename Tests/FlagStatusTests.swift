@@ -91,13 +91,13 @@ private let base = #""mode":"live","upstream":"connected","drivers":[],"messages
 
 // MARK: When flags are shown
 
-private func session(mode: String = "live", end: String = "2026-11-07T19:00:00Z", locationDate: String? = nil) throws -> TimingSnapshot {
+private func session(mode: String = "live", end: String = "2026-11-07T19:00:00Z", locationDate: String? = nil, track: String = "red") throws -> TimingSnapshot {
     let location = locationDate.map { #","location":{"x":1,"y":2,"date":"\#($0)"}"# } ?? ""
     return try decode("""
     {"mode":"\(mode)","upstream":"connected",
      "session":{"name":"Qualifying","circuit":"Interlagos","start":"2026-11-07T18:00:00Z","end":"\(end)"},
      "drivers":[{"number":4,"name":"Norris","acronym":"NOR","team":"McLaren","color":"FF8000"\(location)}],
-     "messages":[],"flags":{"track":"red","sectors":[{"sector":2,"flag":"yellow"}]}}
+     "messages":[],"flags":{"track":"\(track)","sectors":[{"sector":2,"flag":"yellow"}]}}
     """)
 }
 
@@ -108,13 +108,25 @@ private func session(mode: String = "live", end: String = "2026-11-07T19:00:00Z"
 
 @Test func flagsOfAFinishedSessionWithNoCarOnTrackAreHistory() throws {
     let now = try #require(TrackLayout.parseDate("2026-11-07T21:00:00Z"))
-    #expect(try session().activeFlags(at: now).isClear)
-    #expect(try session(locationDate: "2026-11-07T18:30:00Z").activeFlags(at: now).isClear)
+    #expect(try session(track: "safetyCar").activeFlags(at: now).isClear)
+    #expect(try session(locationDate: "2026-11-07T18:30:00Z", track: "virtualSafetyCar").activeFlags(at: now).isClear)
 }
 
 @Test func aRedFlagThatRunsPastTheScheduledEndIsStillShownWhileCarsReport() throws {
     let now = try #require(TrackLayout.parseDate("2026-11-07T19:10:00Z"))
     #expect(try session(locationDate: "2026-11-07T19:09:58Z").activeFlags(at: now).track == .red)
+}
+
+@Test func aRedFlagIsShownPastTheScheduledEndEvenWhenNoCarReportsAPosition() throws {
+    // A red flag is what extends a session, and stopped cars may report nothing. Yellow is history by then.
+    let now = try #require(TrackLayout.parseDate("2026-11-07T21:00:00Z"))
+    #expect(try session().activeFlags(at: now).track == .red)
+    let yellowOnly = try decode("""
+    {"mode":"live","upstream":"connected",
+     "session":{"name":"Race","circuit":"Interlagos","start":"2026-11-07T18:00:00Z","end":"2026-11-07T19:00:00Z"},
+     "drivers":[],"messages":[],"flags":{"track":"safetyCar","sectors":[{"sector":2,"flag":"yellow"}]}}
+    """)
+    #expect(yellowOnly.activeFlags(at: now).isClear)
 }
 
 @Test func demoFlagsAreAlwaysShown() throws {

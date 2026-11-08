@@ -13,6 +13,12 @@ public struct SectorRuns: Sendable, Equatable {
     public let runs: [Int: [[TrackPoint]]]
 
     public func points(forSector sector: Int) -> [[TrackPoint]] { runs[sector] ?? [] }
+
+    /// The flagged sector numbers this circuit's table has no stretch of track for, lowest first. Race control
+    /// can name a sector the table lacks when the circuit has been changed since the table was made.
+    public func unmapped(_ flagged: [SectorFlag]) -> [Int] {
+        flagged.map(\.sector).filter { points(forSector: $0).isEmpty }.sorted()
+    }
 }
 
 public enum MarshalSectors {

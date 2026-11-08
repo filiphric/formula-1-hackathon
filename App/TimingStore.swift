@@ -10,9 +10,11 @@ final class TimingStore {
     private var socket: URLSessionWebSocketTask?
 
     func run(endpoint: String) async {
-        guard let url = URL(string: endpoint),
-              ["ws", "wss"].contains(url.scheme?.lowercased() ?? ""),
-              url.host != nil, url.user == nil, url.password == nil else {
+        guard let url = ServerConnection.timingURL(from: endpoint) else {
+            // Drop the previous server's timing so a bad address reads as offline, not as a feed that is reconnecting.
+            snapshot = nil
+            connected = false
+            status = "Disconnected"
             error = "Enter a WebSocket address, such as ws://localhost:8787/live."
             return
         }

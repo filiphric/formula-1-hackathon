@@ -324,11 +324,69 @@ async fn load_snapshot(
     Ok(key)
 }
 
+// Public geometry metadata: never attach OpenF1 authentication to this host.
+async fn circuit_rotation(api: &OpenF1, key: i64) -> Option<f64> {
+    let sessions = api.get("sessions", &key.to_string()).await.ok()?;
+    let session = sessions
+        .iter()
+        .find(|s| s["session_key"].as_i64() == Some(key))?;
+    let circuit = session["circuit_key"].as_u64()?;
+    let year = session["year"].as_u64()?;
+    let metadata: Value = api
+        .http
+        .get(format!(
+            "https://api.multiviewer.app/api/v1/circuits/{circuit}/{year}"
+        ))
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    rotation_from_metadata(&metadata, circuit)
+}
+
+fn rotation_from_metadata(metadata: &Value, circuit: u64) -> Option<f64> {
+    if metadata["circuitKey"].as_u64() != Some(circuit) {
+        return None;
+    }
+    metadata["rotation"]
+        .as_f64()
+        .filter(|v| v.is_finite())
+        .map(|v| v.rem_euclid(360.0))
+}
+
 async fn refresh_track(api: &OpenF1, state: &SharedState, key: i64) {
-    if state.read().await.track.is_some() {
+    if state
+        .read()
+        .await
+        .track
+        .as_ref()
+        .is_some_and(|t| t.rotation_degrees.is_some())
+    {
         return;
     }
     let result: Result<()> = async {
+        let rotation = circuit_rotation(api, key).await;
+        if rotation.is_none() {
+            warn!(
+                session_key = key,
+                "Circuit orientation metadata unavailable or invalid; will retry"
+            );
+        }
+        {
+            let mut state = state.write().await;
+            if state.session.as_ref().map(|s| s.session_key) != Some(key) {
+                return Ok(());
+            }
+            if let Some(track) = state.track.as_mut() {
+                track.rotation_degrees = rotation;
+                return Ok(());
+            }
+        }
         sleep(Duration::from_millis(350)).await;
         let laps = api.get("laps", &key.to_string()).await?;
         let mut candidates: Vec<_> = laps
@@ -360,7 +418,8 @@ async fn refresh_track(api: &OpenF1, state: &SharedState, key: i64) {
                     ],
                 )
                 .await?;
-            if let Some(track) = reference_layout(records, key, start, end) {
+            if let Some(mut track) = reference_layout(records, key, start, end) {
+                track.rotation_degrees = rotation;
                 let mut state = state.write().await;
                 if state.session.as_ref().map(|s| s.session_key) == Some(key) {
                     state.track = Some(track);
@@ -409,6 +468,7 @@ fn reference_layout(
     }
     let stride = locations.len().div_ceil(600);
     Some(crate::state::TrackLayout {
+        rotation_degrees: None,
         source: "OpenF1 · Approximate completed-lap trace".into(),
         points: locations
             .into_iter()
@@ -820,5 +880,29 @@ mod tests {
         api.authenticate().await.unwrap();
         assert_eq!(calls.load(Ordering::SeqCst), 2);
         server.abort();
+    }
+}
+
+#[cfg(test)]
+mod orientation_tests {
+    use super::*;
+    #[test]
+    fn circuit_metadata_requires_matching_identity_and_numeric_rotation() {
+        assert_eq!(
+            rotation_from_metadata(&serde_json::json!({"circuitKey":63,"rotation":92}), 63),
+            Some(92.0)
+        );
+        assert_eq!(
+            rotation_from_metadata(&serde_json::json!({"circuitKey":63,"rotation":92}), 7),
+            None
+        );
+        assert_eq!(
+            rotation_from_metadata(&serde_json::json!({"circuitKey":63}), 63),
+            None
+        );
+        assert_eq!(
+            rotation_from_metadata(&serde_json::json!({"circuitKey":63,"rotation":"92"}), 63),
+            None
+        );
     }
 }

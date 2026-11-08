@@ -47,12 +47,24 @@ seconds, and the view identifies disconnected, stale, future and ended sessions.
 Drivers without coordinates are listed as unavailable. Fresh coordinates can keep
 an extended session live past its scheduled end.
 
+Circuit orientation uses the circuit/year rotation from the public MultiViewer API,
+as referenced by OpenF1 and FastF1. The backend sends optional `rotationDegrees`;
+the app rotates the outline, cars and start/finish together before fitting the map.
+Older servers and metadata outages show “Orientation unverified · Raw telemetry”;
+missing metadata retries on the next track refresh. Demo geometry stays fictional.
+
 The outline is a completed, non-out-lap location trace from the current session,
 with at most 600 points. Up to three recent laps are tried if a trace is sparse. It appears once a sufficiently complete timed lap is
 available and retries every minute while unavailable. Coordinates are approximate,
 not lane-level tracking. A new session clears both the outline and old locations.
 `track` and driver `location` are optional additions to the existing WebSocket
 contract; older snapshots still decode and display a waiting state.
+
+Markers interpolate between received samples over at most one second, using a
+frame-driven SwiftUI timeline. They stop at the latest sample without predicting
+future positions. Long gaps, stale samples, reconnects and session changes reset
+motion; Reduce Motion displays the received position immediately. Marker separation
+uses stable car-number order so timing-order changes do not reshuffle overlaps.
 
 Demo mode animates four markers around an explicitly fictional circuit, without
 contacting OpenF1. It does not reproduce a real race. Live location delivery needs
@@ -66,8 +78,9 @@ safety car or virtual safety car, and the sectors under yellow or double yellow 
 sectors 12, 13"). On the map a red flag, safety car or virtual safety car colours the whole circuit (the
 virtual safety car dashed), and each yellow sector lights up its own stretch of track with its number; a
 double yellow also gets a dashed stripe. Flags from a feed that is stale or offline are labelled *Last
-known* and drawn fainter, demo flags say *Demo · simulated flags*, and the flags of a finished session
-are not shown.
+known* and drawn fainter, demo flags say *Demo · simulated flags*, and the yellow and safety-car flags of a
+finished session are not shown (a red flag is, because it is what extends a session). The banner sits under the
+app bar on both tabs.
 
 The backend works out what is flagged from the session's whole `race_control` history (the app only
 lists the newest 100 messages, and a session can run past that) and sends it as an optional `flags`
@@ -81,7 +94,7 @@ object, so older servers and older apps keep working:
 Rules, taken from real OpenF1 sessions: a sector is flagged from its `YELLOW`/`DOUBLE YELLOW` message
 (`scope: "Sector"`) until its own `CLEAR`; `TRACK CLEAR` withdraws every flag and ends a red flag or
 safety car; `VSC ENDING` ends the virtual safety car (it is often not followed by `TRACK CLEAR`);
-`SESSION FINISHED` ends everything raised before it; blue and black-and-white flags are shown to one
+`SESSION FINISHED` ends everything raised before it, and `SESSION STARTED` ends a red flag whose `TRACK CLEAR` was missed; blue and black-and-white flags are shown to one
 driver and say nothing about the track.
 
 Race control names a sector by number only. `Core/MarshalSectorData.swift` holds where each marshal
@@ -109,7 +122,15 @@ timing JSON contract. In normal mode it uses the public
 so calendar requests do not send OpenF1 credentials. Seasons are cached in memory
 for 15 minutes. If refresh fails, the last fetched calendar is returned with
 `stale: true`; without cached data the server returns HTTP 502 and the app offers
-retry. The app displays the source, fetch time and stale warning. Use Refresh to
+retry. The app also retains the visible season if its own refresh cannot reach the
+backend, showing a saved-data warning; changing server or season clears that view.
+Both tabs use the server confirmed with Connect, and prefixed deployment URLs
+(e.g. `/formula/live`) retain their prefix for calendar requests. Failed refreshes have a 30-second retry cooldown, and requests for one
+season do not block cached calendars for another. The app displays the source, fetch time and stale warning. Client expiration uses
+the backend's remaining cache lifetime (`expiresIn`) and monotonic elapsed time
+from the request start. Device/server clock skew does not label fresh calendars
+stale, and a warm server cache does not receive a new 15-minute window. Responses
+without a remaining lifetime are conservatively shown as stale. Use Refresh to
 check again after the cache interval. Restarting the backend clears this cache.
 
 `GET /results/{year}/{round}` returns the race classification from the same Jolpica
@@ -188,7 +209,8 @@ Scripts/install-iphone.sh --device "My iPhone" --endpoint ws://YOUR-MAC-LAN-IP:8
 ```
 
 The script finds the device by name (default `Ajfonis`), replaces the installed app in place
-and passes `--endpoint` for that launch only; enter it once in Connection settings to keep it.
+and `--endpoint` saves the server address in the app (once, via `-seedServerEndpoint`), so later
+launches from the home screen keep it and Connection settings can still change it.
 
 The development server has no client authentication and defaults to loopback.
 Binding to the LAN exposes its timing stream to that network. Before internet

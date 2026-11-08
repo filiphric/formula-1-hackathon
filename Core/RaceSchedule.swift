@@ -7,30 +7,46 @@ public struct RaceSchedule: Codable, Sendable {
     public let fetchedAt: String
     public let stale: Bool
     public let races: [RaceWeekend]
+    public var expiresIn: TimeInterval? = nil
+
+    public static func currentSeason(at now: Date = .now) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar.component(.year, from: now)
+    }
+
+    public static func availableSeasons(at now: Date = .now) -> [Int] {
+        Array((2023...max(2023, currentSeason(at: now) + 1)).reversed())
+    }
 
     public var fetchedDate: Date? { parseScheduleDate(fetchedAt) }
 
-    public func isStale(at now: Date) -> Bool {
-        stale || fetchedDate.map { now.timeIntervalSince($0) >= 900 } ?? true
+    public func isStale(elapsedSinceValidation elapsed: TimeInterval) -> Bool {
+        // Backend freshness is authoritative at receipt; device/server wall clocks
+        // need not agree. The client expires its view using elapsed time only.
+        stale || elapsed < 0 || elapsed >= min(max(expiresIn ?? 0, 0), 900)
     }
 
     public func nextRace(at now: Date) -> RaceWeekend? {
-        races.filter { !$0.isPast(at: now) }.min { $0.round < $1.round }
+        races.filter { !$0.isPast(at: now) }.min {
+            ($0.raceDate ?? .distantFuture) < ($1.raceDate ?? .distantFuture)
+        }
     }
 
     public static func endpoint(from timingEndpoint: String, season: Int) -> URL? {
-        backendURL(from: timingEndpoint, path: "/schedule/\(season)")
+        backendURL(from: timingEndpoint, route: "schedule/\(season)")
     }
 }
 
 /// The HTTP address of a backend route that sits beside the timing WebSocket, or nil when the
 /// timing address is not a plain ws/wss URL. Credentials, query and fragment are never carried over.
-func backendURL(from timingEndpoint: String, path: String) -> URL? {
+func backendURL(from timingEndpoint: String, route: String) -> URL? {
     guard var components = URLComponents(string: timingEndpoint),
           let scheme = components.scheme?.lowercased(), ["ws", "wss"].contains(scheme),
           components.host != nil, components.user == nil, components.password == nil else { return nil }
     components.scheme = scheme == "wss" ? "https" : "http"
-    components.path = path
+    let prefix = components.percentEncodedPath.split(separator: "/").dropLast().joined(separator: "/")
+    components.percentEncodedPath = (prefix.isEmpty ? "" : "/" + prefix) + "/" + route
     components.query = nil
     components.fragment = nil
     return components.url
@@ -43,6 +59,11 @@ public struct RaceWeekend: Codable, Identifiable, Sendable {
     public let circuit: String
     public let country: String
     public let sessions: [ScheduledSession]
+
+    public var raceDate: Date? {
+        guard let race = sessions.first(where: { $0.name == "Race" }) else { return nil }
+        return race.startDate ?? race.calendarDate(timeZone: .autoupdatingCurrent)
+    }
 
     public func isPast(at now: Date, timeZone: TimeZone = .autoupdatingCurrent) -> Bool {
         guard let race = sessions.first(where: { $0.name == "Race" }) else { return false }
@@ -113,7 +134,7 @@ public struct RaceResults: Codable, Sendable {
     public let entries: [ResultEntry]
 
     public static func endpoint(from timingEndpoint: String, season: Int, round: Int) -> URL? {
-        backendURL(from: timingEndpoint, path: "/results/\(season)/\(round)")
+        backendURL(from: timingEndpoint, route: "results/\(season)/\(round)")
     }
 }
 

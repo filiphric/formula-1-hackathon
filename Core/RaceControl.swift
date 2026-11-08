@@ -90,6 +90,8 @@ public struct FeedStatus: Equatable, Sendable {
     public let updatedAt: Date?
     /// Seconds since `updatedAt`, if known.
     public let age: TimeInterval?
+    /// False only before any snapshot has arrived, so an offline feed has no earlier timing to show.
+    public let hasSnapshot: Bool
 
     public static let staleAfter: TimeInterval = 30
 
@@ -99,20 +101,20 @@ public struct FeedStatus: Equatable, Sendable {
 
     public static func resolve(snapshot: TimingSnapshot?, connected: Bool, hasError: Bool, now: Date) -> Self {
         guard let snapshot else {
-            return Self(kind: hasError ? .offline : .connecting, isDemo: false, updatedAt: nil, age: nil)
+            return Self(kind: hasError ? .offline : .connecting, isDemo: false, updatedAt: nil, age: nil, hasSnapshot: false)
         }
         let isDemo = snapshot.mode == "demo"
         let updated = snapshot.updatedAt.flatMap(TrackLayout.parseDate)
         let age = updated.map { now.timeIntervalSince($0) }
-        if !connected { return Self(kind: .offline, isDemo: isDemo, updatedAt: updated, age: age) }
+        if !connected { return Self(kind: .offline, isDemo: isDemo, updatedAt: updated, age: age, hasSnapshot: true) }
         // Demo timing is simulated; it never goes stale and says so instead.
-        if isDemo { return Self(kind: .live, isDemo: true, updatedAt: updated, age: age) }
+        if isDemo { return Self(kind: .live, isDemo: true, updatedAt: updated, age: age, hasSnapshot: true) }
         if startingUpstreamStates.contains(snapshot.upstream) {
-            return Self(kind: .connecting, isDemo: false, updatedAt: updated, age: age)
+            return Self(kind: .connecting, isDemo: false, updatedAt: updated, age: age, hasSnapshot: true)
         }
-        if snapshot.upstream != "connected" { return Self(kind: .stale, isDemo: false, updatedAt: updated, age: age) }
-        guard let age else { return Self(kind: .stale, isDemo: false, updatedAt: nil, age: nil) }
-        return Self(kind: age > staleAfter ? .stale : .live, isDemo: false, updatedAt: updated, age: age)
+        if snapshot.upstream != "connected" { return Self(kind: .stale, isDemo: false, updatedAt: updated, age: age, hasSnapshot: true) }
+        guard let age else { return Self(kind: .stale, isDemo: false, updatedAt: nil, age: nil, hasSnapshot: true) }
+        return Self(kind: age > staleAfter ? .stale : .live, isDemo: false, updatedAt: updated, age: age, hasSnapshot: true)
     }
 
     /// How old the timing is in words ("45 s", "38 min", "1 h 12 min"); nil when the age is unknown.

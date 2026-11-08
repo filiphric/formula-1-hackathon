@@ -18,7 +18,7 @@ public struct ChampionshipStandings: Codable, Sendable, Equatable {
     }
 
     public static func endpoint(from timingEndpoint: String, season: Int) -> URL? {
-        backendURL(from: timingEndpoint, path: "/standings/\(season)")
+        backendURL(from: timingEndpoint, route: "standings/\(season)")
     }
 }
 

@@ -3,8 +3,13 @@ use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex as StdMutex},
+    time::{Duration, Instant},
+};
 use tokio::sync::Mutex;
+use tracing::warn;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,10 +42,24 @@ pub struct ResultEntry {
     pub fastest_lap: bool,
 }
 
+/// What is known about one race. Each race has its own lock, so a slow fetch for one race never blocks
+/// another, while concurrent requests for the same race share a single upstream call.
+#[derive(Default)]
+struct Slot {
+    saved: Option<(RaceResults, Instant)>,
+    last_failure: Option<Instant>,
+}
+
+type Slots = StdMutex<HashMap<(i32, u32), Arc<Mutex<Slot>>>>;
+
 pub struct Results {
     http: reqwest::Client,
-    cache: Mutex<HashMap<(i32, u32), RaceResults>>,
+    slots: Slots,
     base_url: String,
+    /// How long a published classification is served without asking the source again.
+    ttl: Duration,
+    /// How long an unpublished classification, or a failed fetch, is remembered before asking again.
+    retry_after: Duration,
 }
 
 impl Default for Results {
@@ -50,8 +69,10 @@ impl Default for Results {
                 .timeout(Duration::from_secs(15))
                 .build()
                 .expect("results HTTP client"),
-            cache: Mutex::new(HashMap::new()),
+            slots: StdMutex::new(HashMap::new()),
             base_url: "https://api.jolpi.ca/ergast/f1".into(),
+            ttl: Duration::from_secs(900),
+            retry_after: Duration::from_secs(30),
         }
     }
 }
@@ -61,6 +82,15 @@ pub fn valid_race(year: i32, round: u32) -> bool {
 }
 
 impl Results {
+    fn slot(&self, year: i32, round: u32) -> Arc<Mutex<Slot>> {
+        self.slots
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .entry((year, round))
+            .or_default()
+            .clone()
+    }
+
     pub async fn load(&self, year: i32, round: u32, demo: bool) -> Result<RaceResults> {
         if !valid_race(year, round) {
             bail!("Unsupported race");
@@ -68,29 +98,48 @@ impl Results {
         if demo {
             return Ok(demo_results(year, round));
         }
-        let mut cache = self.cache.lock().await;
-        if let Some(saved) = cache.get(&(year, round)) {
-            let age = chrono::DateTime::parse_from_rfc3339(&saved.fetched_at)?;
-            if Utc::now().signed_duration_since(age).num_seconds() < 900 {
+        let slot = self.slot(year, round);
+        let mut slot = slot.lock().await;
+        if let Some((saved, at)) = &slot.saved {
+            // A classification that is not published yet is re-checked sooner than a published one.
+            let ttl = if saved.entries.is_empty() {
+                self.retry_after
+            } else {
+                self.ttl
+            };
+            if at.elapsed() < ttl {
                 return Ok(saved.clone());
             }
         }
+        if slot
+            .last_failure
+            .is_some_and(|at| at.elapsed() < self.retry_after)
+        {
+            return Self::fallback(&slot, anyhow::anyhow!("Results source recently failed"));
+        }
         match self.fetch(year, round).await {
             Ok(results) => {
-                // An unpublished classification is not cached, so it appears as soon as the source has it.
-                if !results.entries.is_empty() {
-                    cache.insert((year, round), results.clone());
-                }
+                slot.saved = Some((results.clone(), Instant::now()));
+                slot.last_failure = None;
                 Ok(results)
             }
-            Err(error) => match cache.get(&(year, round)) {
-                Some(saved) => {
-                    let mut saved = saved.clone();
-                    saved.stale = true;
-                    Ok(saved)
-                }
-                None => Err(error),
-            },
+            Err(error) => {
+                warn!(year, round, error = %format!("{error:#}"), "Race results refresh failed");
+                slot.last_failure = Some(Instant::now());
+                Self::fallback(&slot, error)
+            }
+        }
+    }
+
+    /// The last published classification marked stale, or the error when there is none.
+    fn fallback(slot: &Slot, error: anyhow::Error) -> Result<RaceResults> {
+        match &slot.saved {
+            Some((saved, _)) if !saved.entries.is_empty() => {
+                let mut saved = saved.clone();
+                saved.stale = true;
+                Ok(saved)
+            }
+            _ => Err(error),
         }
     }
 
@@ -289,22 +338,149 @@ mod tests {
         assert!(normalize(2025, 1, &truncated).is_err());
     }
 
-    #[tokio::test]
-    async fn stale_cache_survives_failure_and_demo_never_calls_upstream() {
-        let results = Results {
-            base_url: "http://127.0.0.1:0".into(),
+    /// A stand-in for the Jolpica feed that counts requests and can answer slowly, with errors, or empty.
+    struct Feed {
+        base_url: String,
+        requests: Arc<std::sync::atomic::AtomicUsize>,
+        published: Arc<std::sync::atomic::AtomicBool>,
+        failing: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    async fn feed(slow_round: Option<u32>) -> Feed {
+        use axum::{extract::Path, routing::get, Json, Router};
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
+        let requests = Arc::new(AtomicUsize::new(0));
+        let published = Arc::new(AtomicBool::new(false));
+        let failing = Arc::new(AtomicBool::new(false));
+        let (r, p, f) = (requests.clone(), published.clone(), failing.clone());
+        let app = Router::new().route(
+            "/{year}/{round}/results/",
+            get(move |Path((year, round)): Path<(i32, u32)>| {
+                let (r, p, f) = (r.clone(), p.clone(), f.clone());
+                async move {
+                    r.fetch_add(1, SeqCst);
+                    if slow_round == Some(round) {
+                        tokio::time::sleep(Duration::from_millis(1500)).await;
+                    }
+                    if f.load(SeqCst) {
+                        return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+                    }
+                    let record = json!({"position":"1","positionText":"1","points":"25","grid":"1","laps":"57",
+                        "status":"Finished","Driver":{"code":"AAA","givenName":"Alex","familyName":"Sample"},
+                        "Constructor":{"name":"Team"},"Time":{"time":"1:30:00.000"}});
+                    let (races, total) = if p.load(SeqCst) {
+                        (json!([{"season":year.to_string(),"round":round.to_string(),"Results":[record]}]), "1")
+                    } else {
+                        (json!([]), "0")
+                    };
+                    Ok(Json(json!({"MRData":{"total":total,"RaceTable":{"Races":races}}})))
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        Feed {
+            base_url,
+            requests,
+            published,
+            failing,
+        }
+    }
+
+    fn client(feed: &Feed, retry_after: Duration) -> Results {
+        Results {
+            base_url: feed.base_url.clone(),
+            retry_after,
             ..Results::default()
-        };
+        }
+    }
+
+    fn count(feed: &Feed) -> usize {
+        feed.requests.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    #[tokio::test]
+    async fn unpublished_classification_is_asked_for_once_then_picked_up_later() {
+        let feed = feed(None).await;
+        let results = client(&feed, Duration::from_millis(300));
+        let (a, b, c) = tokio::join!(
+            results.load(2025, 1, false),
+            results.load(2025, 1, false),
+            results.load(2025, 1, false)
+        );
+        assert!(
+            a.unwrap().entries.is_empty()
+                && b.unwrap().entries.is_empty()
+                && c.unwrap().entries.is_empty()
+        );
+        assert_eq!(count(&feed), 1, "viewers share one upstream request");
+        feed.published
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            results
+                .load(2025, 1, false)
+                .await
+                .unwrap()
+                .entries
+                .is_empty(),
+            "not asked again yet"
+        );
+        assert_eq!(count(&feed), 1);
+        tokio::time::sleep(Duration::from_millis(350)).await;
+        assert_eq!(results.load(2025, 1, false).await.unwrap().entries.len(), 1);
+        assert_eq!(count(&feed), 2);
+        results.load(2025, 1, false).await.unwrap();
+        assert_eq!(count(&feed), 2, "a published classification stays cached");
+    }
+
+    #[tokio::test]
+    async fn failures_are_not_retried_immediately_and_serve_saved_results_as_stale() {
+        let feed = feed(None).await;
+        feed.failing
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let results = client(&feed, Duration::from_millis(300));
         assert!(results.load(2025, 1, false).await.is_err());
-        let mut saved = demo_results(2025, 1);
-        saved.mode = "results".into();
-        saved.fetched_at = "2020-01-01T00:00:00Z".into();
-        results.cache.lock().await.insert((2025, 1), saved);
+        assert!(results.load(2025, 1, false).await.is_err());
+        assert_eq!(count(&feed), 1, "an outage is not hammered");
+        // Seed a published classification, then let it expire while the feed is down.
+        feed.failing
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        feed.published
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(350)).await;
+        let fresh = results.load(2025, 1, false).await.unwrap();
+        assert!(!fresh.stale);
+        let results = Results {
+            ttl: Duration::ZERO,
+            ..results
+        };
+        feed.failing
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         let stale = results.load(2025, 1, false).await.unwrap();
         assert!(stale.stale);
-        assert_eq!(stale.fetched_at, "2020-01-01T00:00:00Z");
+        assert_eq!(stale.entries.len(), 1);
+        assert_eq!(stale.fetched_at, fresh.fetched_at);
         assert_eq!(results.load(2025, 1, true).await.unwrap().mode, "demo");
         assert!(results.load(1900, 1, true).await.is_err());
         assert!(results.load(2025, 0, true).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_slow_race_does_not_block_other_races() {
+        let feed = feed(Some(1)).await;
+        let results = Arc::new(client(&feed, Duration::from_secs(30)));
+        let slow = tokio::spawn({
+            let results = results.clone();
+            async move { results.load(2025, 1, false).await }
+        });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let started = Instant::now();
+        results.load(2025, 2, false).await.unwrap();
+        assert!(
+            started.elapsed() < Duration::from_millis(1000),
+            "round 2 waited for round 1"
+        );
+        slow.await.unwrap().unwrap();
     }
 }

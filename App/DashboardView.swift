@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     let store: TimingStore
+    let feed: FeedStatus
     let endpoint: String
     /// The pager's slot (see `DashboardPage.loopSlots`); starts on the real running-order slot.
     @State private var slot: Int? = DashboardPage.order.slot
@@ -17,8 +18,7 @@ struct DashboardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-                FeedClock(store: store) { hero(feed: $0) }
-                FeedClock(store: store) { FlagBanner(snapshot: store.snapshot, feed: $0) }
+                hero(feed: feed)
                 if let error = store.error {
                     Label(error, systemImage: "wifi.exclamationmark")
                         .font(RacingStyle.Typography.body).foregroundStyle(Color(RacingPalette.statusStale))

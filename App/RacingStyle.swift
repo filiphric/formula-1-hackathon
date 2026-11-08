@@ -84,21 +84,6 @@ extension FeedStatus {
     }
 }
 
-/// Resolves the feed status once a second for whichever small view asks. Keeping the clock here, and not
-/// above the tab bar, means a tick redraws only the pill and the hero line, never the scrolling content.
-/// Every instance ticks on the same whole-second boundaries, so the pill and the hero cannot disagree.
-struct FeedClock<Content: View>: View {
-    let store: TimingStore
-    @ViewBuilder let content: (FeedStatus) -> Content
-
-    var body: some View {
-        TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 1)) { context in
-            content(FeedStatus.resolve(snapshot: store.snapshot, connected: store.connected,
-                                       hasError: store.error != nil, now: context.date))
-        }
-    }
-}
-
 struct FeedStatusPill: View {
     let status: FeedStatus
 

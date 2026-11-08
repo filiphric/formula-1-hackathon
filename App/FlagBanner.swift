@@ -6,11 +6,11 @@ import SwiftUI
 struct FlagBanner: View {
     let snapshot: TimingSnapshot?
     let feed: FeedStatus
+    let now: Date
     @ScaledMetric(relativeTo: .body) private var iconWidth = 22
 
     var body: some View {
-        // `FeedClock` redraws this every second, so the time here is current.
-        let flags = snapshot?.activeFlags(at: .now) ?? .clear
+        let flags = snapshot?.activeFlags(at: now) ?? .clear
         if !flags.isClear {
             VStack(alignment: .leading, spacing: RacingStyle.Space.s) {
                 // Side by side when they fit, which keeps the banner to one row on a wide screen.
@@ -28,6 +28,10 @@ struct FlagBanner: View {
             .background(RacingStyle.raised, in: RoundedRectangle(cornerRadius: RacingStyle.Radius.row))
             .overlay(alignment: .leading) { Rectangle().fill(accent(flags)).frame(width: 4) }
             .clipShape(RoundedRectangle(cornerRadius: RacingStyle.Radius.row))
+            .frame(maxWidth: 1200)
+            .frame(maxWidth: .infinity)
+            .racingPagePadding(.horizontal)
+            .padding(.top, RacingStyle.Space.m)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Flags")
             .accessibilityValue([flags.spokenDescription, caveat].compactMap { $0 }.joined(separator: " "))

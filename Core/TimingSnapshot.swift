@@ -99,21 +99,46 @@ public struct TrackPoint: Codable, Sendable, Equatable {
     }
 }
 
-public struct DriverLocation: Codable, Sendable {
+public struct DriverLocation: Codable, Sendable, Equatable {
     public let x: Double
     public let y: Double
     public let date: String
 
-    public var timestamp: Date? { TrackLayout.parseDate(date) }
+    public let timestamp: Date?
+
+    private enum CodingKeys: String, CodingKey { case x, y, date }
+
+    public init(x: Double, y: Double, date: String) {
+        self.x = x
+        self.y = y
+        self.date = date
+        timestamp = TrackLayout.parseDate(date)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(x: try values.decode(Double.self, forKey: .x),
+                  y: try values.decode(Double.self, forKey: .y),
+                  date: try values.decode(String.self, forKey: .date))
+    }
+
     public func isStale(at now: Date) -> Bool {
         guard let timestamp else { return true }
         return now.timeIntervalSince(timestamp) > 10 || timestamp.timeIntervalSince(now) > 5
     }
 }
 
-public struct TrackLayout: Codable, Sendable {
+public struct TrackLayout: Codable, Sendable, Equatable {
     public let source: String
     public let points: [TrackPoint]
+    /// MultiViewer/FastF1 rotation, counterclockwise in telemetry coordinates.
+    public var rotationDegrees: Double? = nil
+
+    public var orientedPoints: [TrackPoint] { points.map { rotate($0) } }
+
+    private func rotate(_ point: TrackPoint) -> TrackPoint {
+        TrackProjection.rotate(point, degrees: rotationDegrees ?? 0)
+    }
 
     /// Building an `ISO8601DateFormatter` is expensive and views parse timestamps many times per
     /// render, so the two formatters are created once. `Formatter` is thread-safe for parsing.
@@ -128,33 +153,28 @@ public struct TrackLayout: Codable, Sendable {
         fractionalParser.date(from: value) ?? plainParser.date(from: value)
     }
 
-    public func projection(width: Double, height: Double, rotationDegrees: Double = 0) -> TrackProjection? {
-        TrackProjection(points: points, width: width, height: height, rotationDegrees: rotationDegrees)
+    public func projection(width: Double, height: Double) -> TrackProjection? {
+        TrackProjection(points: points, width: width, height: height, rotationDegrees: rotationDegrees ?? 0)
     }
 }
 
 public struct TrackProjection: Sendable {
+    private let rotationDegrees: Double
     private let minX: Double
     private let maxY: Double
     private let scale: Double
     private let offsetX: Double
     private let offsetY: Double
-    private let cosine: Double
-    private let sine: Double
 
-    /// `rotationDegrees` turns the circuit counter-clockwise (y up) before it is fitted, so the outline and
-    /// every driver position, which go through `project`, share one orientation.
     public init?(points: [TrackPoint], width: Double, height: Double, rotationDegrees: Double = 0) {
-        let radians = rotationDegrees * .pi / 180
-        let cosine = rotationDegrees == 0 ? 1 : cos(radians), sine = rotationDegrees == 0 ? 0 : sin(radians)
-        guard points.count >= 2, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }), rotationDegrees.isFinite,
-              width.isFinite, height.isFinite, width > 64, height > 64 else { return nil }
-        let turned = points.map { (x: $0.x * cosine - $0.y * sine, y: $0.x * sine + $0.y * cosine) }
-        guard let minX = turned.map(\.x).min(), let maxX = turned.map(\.x).max(),
-              let minY = turned.map(\.y).min(), let maxY = turned.map(\.y).max(),
+        guard rotationDegrees.isFinite else { return nil }
+        self.rotationDegrees = rotationDegrees
+        let points = points.map { Self.rotate($0, degrees: rotationDegrees) }
+        guard points.count >= 2, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              width.isFinite, height.isFinite, width > 64, height > 64,
+              let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
+              let minY = points.map(\.y).min(), let maxY = points.map(\.y).max(),
               maxX > minX, maxY > minY else { return nil }
-        self.cosine = cosine
-        self.sine = sine
         self.minX = minX
         self.maxY = maxY
         scale = min((width - 64) / (maxX - minX), (height - 64) / (maxY - minY))
@@ -162,18 +182,26 @@ public struct TrackProjection: Sendable {
         offsetY = (height - (maxY - minY) * scale) / 2
     }
 
+    public static func rotate(_ point: TrackPoint, degrees: Double) -> TrackPoint {
+        let radians = degrees * .pi / 180
+        return TrackPoint(x: point.x * cos(radians) - point.y * sin(radians),
+                          y: point.x * sin(radians) + point.y * cos(radians))
+    }
+
     public func project(x: Double, y: Double) -> TrackPoint? {
         guard x.isFinite, y.isFinite else { return nil }
-        let turnedX = x * cosine - y * sine, turnedY = x * sine + y * cosine
-        return TrackPoint(x: offsetX + (turnedX - minX) * scale, y: offsetY + (maxY - turnedY) * scale)
+        let point = Self.rotate(TrackPoint(x: x, y: y), degrees: rotationDegrees)
+        return TrackPoint(x: offsetX + (point.x - minX) * scale, y: offsetY + (maxY - point.y) * scale)
     }
 }
 
 extension TimingSnapshot {
-    /// The flags worth showing now. Once a real session is over and no car is reporting a position,
-    /// whatever was last flagged is history, so nothing is shown. Demo flags are always shown.
+    /// The flags worth showing now. Once a real session is past its scheduled end and no car is reporting a
+    /// position, whatever yellow or safety car was last flagged is history, so nothing is shown. A red flag
+    /// is the exception: it is what extends a session past its schedule, and cars at rest may report nothing.
+    /// Demo flags are always shown.
     public func activeFlags(at now: Date) -> FlagStatus {
-        if mode == "demo" { return flags }
+        if mode == "demo" || flags.track == .red { return flags }
         if let end = session.flatMap({ TrackLayout.parseDate($0.end) }), now > end,
            !drivers.compactMap(\.location).contains(where: { !$0.isStale(at: now) }) {
             return .clear

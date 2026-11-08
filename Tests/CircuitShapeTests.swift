@@ -47,14 +47,15 @@ private let calendarCircuitsWithOutlines = [
 @Test func interlagosOutlineFacesTheSameWayAsTheLiveMap() throws {
     let url = try #require(Bundle.module.url(forResource: "interlagos-track", withExtension: "json", subdirectory: "Fixtures"))
     let live = try JSONDecoder().decode(TrackLayout.self, from: Data(contentsOf: url))
-    let rotation = CircuitOrientation.rotation(forCircuit: "Interlagos")
+    // The backend supplies the circuit's map rotation with the live trace (258° for Interlagos).
+    #expect(live.rotationDegrees == 258)
     let shape = try #require(CircuitShape.forCircuit("Autódromo José Carlos Pace"))
 
     // The OpenF1 live trace, turned by its rotation, and the calendar outline are two sources for one circuit.
-    #expect(abs(try #require(live.aspectRatio(rotationDegrees: rotation)) - shape.aspectRatio) < 0.06)
+    #expect(abs(try #require(live.aspectRatio) - shape.aspectRatio) < 0.06)
     #expect(shape.aspectRatio > 1.3)
 
-    let projection = try #require(live.projection(width: 1064, height: 1064, rotationDegrees: rotation))
+    let projection = try #require(live.projection(width: 1064, height: 1064))
     let drawn = live.points.compactMap { projection.project(x: $0.x, y: $0.y) }
     func unit(_ point: TrackPoint, in cloud: [TrackPoint]) -> (x: Double, y: Double) {
         let xs = cloud.map(\.x), ys = cloud.map(\.y)

@@ -1,10 +1,5 @@
-//! What is flagged on the circuit right now, worked out from OpenF1 race-control records.
-//!
-//! The visible message list is short, but a flag can stay out for a long time, so the state is
-//! reduced from the session's whole race-control history rather than from what is displayed.
-//! Wording and endings below follow real OpenF1 sessions: sector flags carry `scope: "Sector"` and a
-//! marshal sector number; `TRACK CLEAR` withdraws everything; the virtual safety car ends with its
-//! own `VSC ENDING`, which is often not followed by `TRACK CLEAR`.
+//! What is flagged on the circuit right now, reduced from the session's whole race-control history.
+//! The rules are documented in the README's Flags section.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -45,6 +40,20 @@ pub struct FlagStatus {
     pub sectors: Vec<SectorFlag>,
 }
 
+/// Whether a record can change what is flagged. When history is trimmed these are kept longest, so a flag
+/// that has been out for a long time is not forgotten behind a flood of messages that cannot affect it.
+pub fn affects_flags(record: &Value) -> bool {
+    let text = |field: &str| {
+        record[field]
+            .as_str()
+            .unwrap_or_default()
+            .trim()
+            .to_lowercase()
+    };
+    matches!(text("category").as_str(), "safetycar" | "sessionstatus")
+        || matches!(text("scope").as_str(), "track" | "sector")
+}
+
 /// Reduce race-control records to the current flags. `records` must be oldest first.
 pub fn flag_status<'a>(records: impl IntoIterator<Item = &'a Value>) -> FlagStatus {
     let mut status = FlagStatus::default();
@@ -65,6 +74,9 @@ pub fn flag_status<'a>(records: impl IntoIterator<Item = &'a Value>) -> FlagStat
             if message.contains("FINISHED") {
                 set_track(&mut status, TrackFlag::Clear);
                 status.sectors.clear();
+            } else if message.contains("STARTED") && status.track == TrackFlag::Red {
+                // Racing has resumed, so a red flag whose TRACK CLEAR was missed is over.
+                set_track(&mut status, TrackFlag::Clear);
             }
         } else if category == "safetycar" {
             if message.contains("VSC") || message.contains("VIRTUAL SAFETY CAR") {
