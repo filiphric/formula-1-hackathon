@@ -126,7 +126,10 @@ private struct AppBar: View {
                     .frame(width: 64, height: 16)
                 Text("Unofficial")
                     .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
+            // A fixed block, well inside the bar's 48pt minimum, so the disclosure never changes the bar height or the tabs' alignment.
+            .frame(width: 64, height: 34)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Unofficial Formula 1 companion")
             .help("Unofficial Formula 1 companion · Powered by OpenF1")
