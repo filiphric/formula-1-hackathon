@@ -112,7 +112,9 @@ Upcoming and Past filters. Expand a weekend for practice, qualifying, sprint
 qualifying, sprint and race start times. All published instants are converted to
 the device timezone, including the local calendar date and daylight saving time.
 Unpublished times remain **Time TBC**. Past means the scheduled race start has
-passed; the calendar does not claim a race has finished or show results.
+passed. Open a past weekend to see its race results: finishing order, race time or gap,
+status for lapped and retired drivers, points and the fastest lap. A race that has just
+finished shows "Results not published yet" until the source has the classification.
 
 The Rust backend exposes `GET /schedule/{year}` independently of the existing
 timing JSON contract. In normal mode it uses the public
@@ -130,6 +132,12 @@ from the request start. Device/server clock skew does not label fresh calendars
 stale, and a warm server cache does not receive a new 15-minute window. Responses
 without a remaining lifetime are conservatively shown as stale. Use Refresh to
 check again after the cache interval. Restarting the backend clears this cache.
+
+`GET /results/{year}/{round}` returns the race classification from the same Jolpica
+source, fetched only when a past weekend is opened and cached for 15 minutes (an empty,
+unpublished classification is never cached). A failed refresh returns the saved results
+with `stale: true`; otherwise HTTP 502. Invalid seasons or rounds return HTTP 400.
+`--demo` returns four fictional sample rows labelled as demo results.
 
 `--demo` returns two explicitly fictional sample weekends per selected season,
 including a sprint weekend, without making calendar network requests. A future
