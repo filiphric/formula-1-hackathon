@@ -3,13 +3,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-pub const TOPICS: [&str; 6] = [
+pub const TOPICS: [&str; 7] = [
     "drivers",
     "position",
     "intervals",
     "laps",
     "stints",
     "race_control",
+    "location",
 ];
 
 #[derive(Clone, Debug, Deserialize)]
@@ -31,6 +32,8 @@ pub struct Snapshot {
     pub session: Option<SessionView>,
     pub drivers: Vec<Driver>,
     pub messages: Vec<RaceMessage>,
+    #[serde(default)]
+    pub track: Option<TrackLayout>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,6 +57,8 @@ pub struct Driver {
     pub lap: Option<i64>,
     pub lap_time: Option<f64>,
     pub compound: Option<String>,
+    #[serde(default)]
+    pub location: Option<DriverLocation>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -64,10 +69,44 @@ pub struct RaceMessage {
     pub flag: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TrackPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DriverLocation {
+    pub x: f64,
+    pub y: f64,
+    pub date: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TrackLayout {
+    pub source: String,
+    pub points: Vec<TrackPoint>,
+}
+
+fn location(record: &Value) -> Option<DriverLocation> {
+    let x = record["x"].as_f64()?;
+    let y = record["y"].as_f64()?;
+    if !x.is_finite() || !y.is_finite() || (x == 0.0 && y == 0.0) {
+        return None;
+    }
+    event_date(record)?;
+    Some(DriverLocation {
+        x,
+        y,
+        date: record["date"].as_str()?.into(),
+    })
+}
+
 pub struct TimingState {
     pub mode: String,
     pub upstream: String,
     pub session: Option<Session>,
+    pub track: Option<TrackLayout>,
     records: HashMap<String, HashMap<String, Value>>,
     updated_at: Option<DateTime<Utc>>,
 }
@@ -87,6 +126,7 @@ impl TimingState {
             mode: mode.into(),
             upstream: "connecting".into(),
             session: None,
+            track: None,
             records: HashMap::new(),
             updated_at: None,
         }
@@ -95,6 +135,7 @@ impl TimingState {
     pub fn set_session(&mut self, session: Session) {
         if self.session.as_ref().map(|s| s.session_key) != Some(session.session_key) {
             self.records.clear();
+            self.track = None;
             self.updated_at = None;
         }
         self.session = Some(session);
@@ -106,6 +147,9 @@ impl TimingState {
                 != record.get("session_key").and_then(Value::as_i64)
             || self.session.is_none()
         {
+            return;
+        }
+        if topic == "location" && location(&record).is_none() {
             return;
         }
         let key = if topic == "race_control" {
@@ -123,6 +167,9 @@ impl TimingState {
         let bucket = self.records.entry(topic.into()).or_default();
         let mut preserve_live_fields = false;
         if let Some(old) = bucket.get(&key) {
+            if topic == "location" && event_date(&record) < event_date(old) {
+                return;
+            }
             let sequence = |r: &Value| match topic {
                 "laps" => r["lap_number"].as_i64().unwrap_or(0),
                 "stints" => r["stint_number"].as_i64().unwrap_or(0),
@@ -170,7 +217,7 @@ impl TimingState {
                 bucket.remove(&oldest);
             }
         }
-        if let Some(date) = date {
+        if let Some(date) = date.filter(|_| topic != "location") {
             if self.updated_at.is_none_or(|old| date > old) {
                 self.updated_at = Some(date);
             }
@@ -209,6 +256,7 @@ impl TimingState {
                         .or_else(|| gap.as_str().map(str::to_string)),
                     lap: self.record("laps", key)["lap_number"].as_i64(),
                     lap_time: self.record("laps", key)["lap_duration"].as_f64(),
+                    location: location(self.record("location", key)),
                     compound: self.record("stints", key)["compound"]
                         .as_str()
                         .map(str::to_string),
@@ -234,7 +282,7 @@ impl TimingState {
                 .cmp(&parse(&a.date))
                 .then_with(|| a.id.cmp(&b.id))
         });
-        Snapshot {
+        let mut snapshot = Snapshot {
             mode: self.mode.clone(),
             upstream: self.upstream.clone(),
             updated_at: self
@@ -248,7 +296,21 @@ impl TimingState {
             }),
             drivers,
             messages,
+            track: self.track.clone(),
+        };
+        if self.mode == "demo" {
+            let now = Utc::now();
+            let phase = now.timestamp_millis() as f64 / 60000.0;
+            for (i, driver) in snapshot.drivers.iter_mut().enumerate() {
+                let point = demo_point((phase - i as f64 * 0.09).rem_euclid(1.0));
+                driver.location = Some(DriverLocation {
+                    x: point.x,
+                    y: point.y,
+                    date: now.to_rfc3339(),
+                });
+            }
         }
+        snapshot
     }
 
     pub fn demo() -> Self {
@@ -296,6 +358,20 @@ impl TimingState {
             );
         }
         state.apply("race_control", json!({"session_key":1,"date":date,"message":"DEMO — Sample timing. No live race data."}));
+        state.track = Some(TrackLayout {
+            source: "Fictional demo circuit".into(),
+            points: (0..=180)
+                .map(|i| demo_point(f64::from(i) / 180.0))
+                .collect(),
+        });
         state
+    }
+}
+
+fn demo_point(phase: f64) -> TrackPoint {
+    let angle = phase * std::f64::consts::TAU;
+    TrackPoint {
+        x: 3000.0 * angle.cos() + 750.0 * (3.0 * angle).sin(),
+        y: 1800.0 * angle.sin() + 400.0 * (2.0 * angle).cos(),
     }
 }

@@ -1,149 +1,142 @@
 import SwiftUI
 
 struct DashboardView: View {
-    @State private var store = TimingStore()
-    @Binding var connection: ServerConnection
-    @State private var showingSettings = false
-    private let accent = Color(red: 1, green: 0.22, blue: 0.18)
+    let store: TimingStore
+    let feed: FeedStatus
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    if let error = store.error {
-                        Label(error, systemImage: "wifi.exclamationmark")
-                            .font(.callout).foregroundStyle(.orange)
-                    }
-                    if let snapshot = store.snapshot {
-                        timingBoard(snapshot)
-                        raceControl(snapshot)
-                    } else {
-                        ContentUnavailableView(
-                            "Your race weekend, live",
-                            systemImage: "flag.checkered",
-                            description: Text("Start the backend to load timing. Demo mode works without OpenF1 credentials.")
-                        ).frame(minHeight: 280)
-                    }
-                    Text("Powered by OpenF1 · Unofficial Formula 1 companion")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(24).frame(maxWidth: 1200)
-                    .frame(maxWidth: .infinity)
-            }
-            .background(Color(red: 0.045, green: 0.05, blue: 0.065))
-            .navigationTitle("Formula Live")
-            .toolbar {
-                Button("Connection", systemImage: "network") {
-                    connection.beginEditing()
-                    showingSettings = true
+        ScrollView {
+            VStack(alignment: .leading, spacing: RacingStyle.Space.xl) {
+                hero
+                if let error = store.error {
+                    Label(error, systemImage: "wifi.exclamationmark")
+                        .font(RacingStyle.Typography.body).foregroundStyle(Color(RacingPalette.statusStale))
                 }
-            }
-            .sheet(isPresented: $showingSettings) {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("Timing server").font(.title2.bold())
-                    Text("Use localhost on your Mac or iOS Simulator. On an iPhone, use your Mac’s local network address.")
-                        .font(.callout).foregroundStyle(.secondary)
-                    TextField("ws://localhost:8787/live", text: $connection.draftEndpoint)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                    Text("OpenF1 credentials stay on the backend.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Button("Connect") {
-                        connection.connect()
-                        showingSettings = false
-                    }.buttonStyle(.borderedProminent).tint(accent)
-                }.padding(28).frame(minWidth: 300, idealWidth: 440)
-            }
-            .task(id: connection.activeEndpoint) {
-                guard !connection.activeEndpoint.isEmpty else { return }
-                await store.run(endpoint: connection.activeEndpoint)
-            }
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("RACE CENTRE").font(.caption.bold()).tracking(3).foregroundStyle(accent)
-                Spacer()
-                Label(store.snapshot?.mode == "demo" ? "DEMO" : store.status,
-                      systemImage: store.connected ? "circle.fill" : "circle")
-                    .font(.caption.bold()).foregroundStyle(store.connected ? .green : .secondary)
-            }
-            Text(store.snapshot?.session?.circuit ?? "Ready for lights out")
-                .font(.largeTitle.bold())
-            HStack {
-                Text(store.snapshot?.session?.name ?? "Live timing for macOS and iOS")
-                Spacer()
                 if let snapshot = store.snapshot {
-                    Text("Feed: \(snapshot.upstream)")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: RacingStyle.Space.xl) {
+                            // Side by side the two cards are the same height, so no dead block sits under the shorter one.
+                            timingBoard(snapshot, fillsHeight: true).frame(width: 500)
+                            TrackMapView(snapshot: snapshot, connected: store.connected, fillsHeight: true).frame(minWidth: 380)
+                        }
+                        VStack(spacing: RacingStyle.Space.xl) {
+                            timingBoard(snapshot)
+                            TrackMapView(snapshot: snapshot, connected: store.connected)
+                        }
+                    }
+                    raceControl(snapshot)
+                } else {
+                    ContentUnavailableView(
+                        "Your race weekend, live",
+                        systemImage: "flag.checkered",
+                        description: Text("Start the backend to load timing. Demo mode works without OpenF1 credentials.")
+                    ).frame(minHeight: 280)
                 }
-            }.font(.subheadline).foregroundStyle(.secondary)
-            if store.snapshot?.mode == "demo" {
-                Text("Sample timing · Live access is configured on the backend")
-                    .font(.caption).foregroundStyle(.secondary)
-            } else if let updated = store.snapshot?.updatedAt,
-               let date = ISO8601DateFormatter().date(from: updated) {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    let stale = context.date.timeIntervalSince(date) > 30
-                    Text(stale ? "No new timing for over 30 seconds" : "Latest timing \(date.formatted(date: .omitted, time: .standard))")
-                        .font(.caption).foregroundStyle(stale ? .orange : .secondary)
-                }
+                Text("Powered by OpenF1 · Unofficial Formula 1 companion")
+                    .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textTertiary)
             }
+            .racingPagePadding()
+            .frame(maxWidth: 1200)
+            .frame(maxWidth: .infinity)
+        }
+        .background(RacingStyle.background)
+    }
+
+    /// The one session hero: circuit large, then session name and how fresh the timing is.
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
+            Text(store.snapshot?.session?.circuit ?? "Ready for lights out")
+                .font(RacingStyle.Typography.display).racingHeading()
+                .accessibilityAddTraits(.isHeader)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: RacingStyle.Space.s) { sessionName; feedLine(separator: "· ") }
+                VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { sessionName; feedLine(separator: "") }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var sessionName: some View {
+        Text(store.snapshot?.session?.name ?? "Live timing for macOS and iOS")
+            .font(RacingStyle.Typography.headline).foregroundStyle(RacingStyle.textSecondary)
+    }
+
+    @ViewBuilder private func feedLine(separator: String) -> some View {
+        if feed.isDemo {
+            Text("\(separator)Sample timing, not live").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusDemo))
+        } else if feed.kind == .stale, let age = feed.age {
+            Text("\(separator)No new timing for \(feed.ageText ?? "\(Int(age)) s")").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+        } else if feed.kind == .offline {
+            // With no snapshot there is nothing to show "last" of, so don't claim there is.
+            Text("\(separator)\(store.snapshot == nil ? "No timing received" : "Showing last timing received. Reconnecting…")").font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+        } else if let date = feed.updatedAt {
+            Text("\(separator)Updated \(date.formatted(date: .omitted, time: .standard))").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
         }
     }
 
-    private func timingBoard(_ snapshot: TimingSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Timing board").font(.title3.bold())
+    private func timingBoard(_ snapshot: TimingSnapshot, fillsHeight: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+            RacingSectionTitle(title: "Leaderboard")
             if snapshot.drivers.isEmpty {
-                Text("Waiting for driver data…").foregroundStyle(.secondary)
+                Text("Waiting for driver data…").font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
             }
-            ForEach(snapshot.drivers) { driver in
-                HStack(spacing: 12) {
-                    Text(driver.position.map(String.init) ?? "—")
-                        .font(.title3.bold().monospacedDigit()).frame(width: 30)
-                    RoundedRectangle(cornerRadius: 2).fill(teamColor(driver.color))
-                        .frame(width: 4, height: 34)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(driver.acronym).font(.headline)
-                        Text(driver.team).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text(driver.gap ?? (driver.position == 1 ? "LEADER" : "—"))
-                            .font(.subheadline.monospacedDigit())
-                        Text(driver.formattedLap).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    Text(driver.compound.map { String($0.prefix(1)) } ?? "—")
-                        .font(.caption.bold()).frame(width: 24, height: 24)
-                        .background(.white.opacity(0.08), in: Circle())
-                        .accessibilityLabel(driver.compound ?? "Tyre unknown")
-                }
-                .accessibilityElement(children: .combine)
-                if driver.id != snapshot.drivers.last?.id { Divider().opacity(0.4) }
-            }
-        }.padding(20).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16))
+            TimingTower(drivers: snapshot.drivers, showsGap: snapshot.drivers.hasUsableGaps)
+        }
+        .frame(maxHeight: fillsHeight ? .infinity : nil, alignment: .top)
+        .racingCard()
     }
 
     private func raceControl(_ snapshot: TimingSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("Race control", systemImage: "flag").font(.title3.bold())
+        VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+            RacingSectionTitle(title: "Race control", subtitle: "Latest messages from the session")
             if snapshot.messages.isEmpty {
-                Text("No race-control messages yet.").foregroundStyle(.secondary)
+                Text("No race-control messages yet.").font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
             }
             ForEach(snapshot.messages.prefix(10)) { message in
-                Text(message.message).font(.callout)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12).background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                raceControlRow(message)
             }
+        }.racingCard()
+    }
+
+    @ScaledMetric(relativeTo: .body) private var iconWidth = 22
+
+    /// The label repeats what the colour says, so the flag is never colour-only.
+    private func flagLabel(_ kind: RaceControlKind) -> some View {
+        Text(kind.label).racingLabel().foregroundStyle(kind.color).fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder private func time(_ message: RaceMessage) -> some View {
+        if let time = message.timestamp {
+            Text(time.formatted(date: .omitted, time: .standard))
+                .font(RacingStyle.Typography.caption.monospacedDigit()).foregroundStyle(RacingStyle.textSecondary)
+                .lineLimit(1).fixedSize()
         }
     }
 
-    private func teamColor(_ hex: String) -> Color {
-        guard let value = UInt(hex, radix: 16) else { return .gray }
-        return Color(red: Double((value >> 16) & 255) / 255,
-                     green: Double((value >> 8) & 255) / 255,
-                     blue: Double(value & 255) / 255)
+    private func raceControlRow(_ message: RaceMessage) -> some View {
+        let kind = message.kind
+        return HStack(alignment: .top, spacing: RacingStyle.Space.m) {
+            Image(systemName: kind.symbol).foregroundStyle(kind.color)
+                .frame(width: iconWidth).padding(.top, RacingStyle.Space.xs / 2)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
+                // Label and time share a line when they fit, and stack (never break mid-word) when they do not.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: RacingStyle.Space.s) { flagLabel(kind); time(message) }
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.xs) { flagLabel(kind); time(message) }
+                }
+                Text(message.message).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textPrimary)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(RacingStyle.Space.m)
+        .background(RacingStyle.raised, in: RoundedRectangle(cornerRadius: RacingStyle.Radius.row))
+        .overlay(alignment: .leading) {
+            if kind.severity >= .caution { Rectangle().fill(kind.color).frame(width: 3) }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: RacingStyle.Radius.row))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(message.accessibilitySummary(
+            timeText: message.timestamp?.formatted(date: .omitted, time: .standard)))
     }
 }

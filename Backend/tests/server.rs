@@ -74,10 +74,22 @@ async fn demo_health_websocket_contract_and_shutdown() {
         let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}/live"))
             .await
             .unwrap();
+        let mut previous_x = None;
         for _ in 0..2 {
             let payload = socket.next().await.unwrap().unwrap().into_text().unwrap();
             let snapshot: Snapshot = serde_json::from_str(&payload).unwrap();
             assert_eq!(snapshot.mode, "demo");
+            let x = snapshot.drivers[0].location.as_ref().unwrap().x;
+            if let Some(previous) = previous_x {
+                assert_ne!(x, previous);
+            }
+            previous_x = Some(x);
+            assert!(snapshot
+                .track
+                .as_ref()
+                .unwrap()
+                .source
+                .contains("Fictional"));
             assert_eq!(snapshot.drivers.len(), 4);
             assert_eq!(snapshot.drivers[0].position, Some(1));
             assert_eq!(snapshot.drivers[0].acronym, "NOR");
