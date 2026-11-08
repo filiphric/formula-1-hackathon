@@ -3,11 +3,13 @@ root = File.expand_path('..', __dir__)
 project = Xcodeproj::Project.new(File.join(root, 'FormulaLive.xcodeproj'))
 target = project.new_target(:application, 'FormulaLive', :ios, '17.0')
 group = project.main_group.new_group('Sources')
+config_reference = project.main_group.new_file('Config.xcconfig')
 Dir.glob(File.join(root, '{App,Core}', '*.swift')).sort.each do |path|
   reference = group.new_file(path.delete_prefix(root + '/'))
   target.source_build_phase.add_file_reference(reference)
 end
 target.build_configurations.each do |config|
+  config.base_configuration_reference = config_reference
   config.build_settings.merge!({
     'PRODUCT_BUNDLE_IDENTIFIER' => 'dev.formulalive.app',
     'PRODUCT_NAME' => 'FormulaLive',

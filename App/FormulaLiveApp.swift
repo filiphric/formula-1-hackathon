@@ -2,6 +2,12 @@ import SwiftUI
 
 @main
 struct FormulaLiveApp: App {
+    init() {
+        // `-seedServerEndpoint ws://host:port/live` saves a one-time address (see Scripts/install-iphone.sh).
+        ServerEndpointSeed.apply(UserDefaults.standard.string(forKey: ServerEndpointSeed.launchKey),
+                                 to: .standard)
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

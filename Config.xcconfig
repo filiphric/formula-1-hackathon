@@ -1,0 +1,3 @@
+// Shared build settings. Machine-specific signing lives in Config.local.xcconfig (not committed);
+// copy Config.local.example.xcconfig to Config.local.xcconfig and fill it in.
+#include? "Config.local.xcconfig"
