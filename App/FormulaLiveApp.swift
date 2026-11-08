@@ -19,10 +19,6 @@ struct FormulaLiveApp: App {
     }
 }
 
-extension AppSection {
-    var symbol: String { self == .live ? "flag.checkered" : "calendar" }
-}
-
 private struct RootView: View {
     @AppStorage("serverEndpoint") private var endpoint = "ws://localhost:8787/live"
     @State private var store = TimingStore()
@@ -86,38 +82,31 @@ private struct RootView: View {
         } else {
             TabView(selection: $tab) {
                 DashboardView(store: store, feed: feed).tag(AppSection.live)
-                    .tabItem { Label(AppSection.live.rawValue, systemImage: AppSection.live.symbol) }
+                    .tabItem { Image(systemName: AppSection.live.symbol).accessibilityLabel(AppSection.live.rawValue) }
                 ScheduleView(endpoint: scheduleEndpoint).tag(AppSection.schedule)
-                    .tabItem { Label(AppSection.schedule.rawValue, systemImage: AppSection.schedule.symbol) }
+                    .tabItem { Image(systemName: AppSection.schedule.symbol).accessibilityLabel(AppSection.schedule.rawValue) }
             }
         }
     }
 }
 
-/// The only app-level chrome: logo, name, feed status (live screen only), connection settings. One 3pt brand-red rule underneath is the
-/// only accent in the header area.
+/// Icon navigation, feed status on the live screen, and connection settings.
 private struct AppBar: View {
     let feed: FeedStatus
     @Binding var tab: AppSection
     let showsTabs: Bool
     let showSettings: () -> Void
-    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
-        // Drop the wordmark before squeezing the pill. The bar's own text stops at xxxLarge:
-        // it is chrome, and the content below it scales all the way up.
-        ViewThatFits(in: .horizontal) {
-            bar(showName: true)
-            bar(showName: false)
-        }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .padding(.horizontal, RacingStyle.Space.l)
-        .frame(minHeight: 48)
-        .background(RacingStyle.background, ignoresSafeAreaEdges: .top)
-        .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
+        bar
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .padding(.horizontal, RacingStyle.Space.l)
+            .frame(minHeight: 48)
+            .background(RacingStyle.background, ignoresSafeAreaEdges: .top)
+            .overlay(alignment: .bottom) { RacingStyle.red.frame(height: 3) }
     }
 
-    private func bar(showName: Bool) -> some View {
+    private var bar: some View {
         HStack(spacing: RacingStyle.Space.m) {
             VStack(spacing: RacingStyle.Space.xs) {
                 Image("F1Logo")
@@ -134,28 +123,30 @@ private struct AppBar: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Unofficial Formula 1 companion")
             .help("Unofficial Formula 1 companion · Powered by OpenF1")
-            if showName {
-                Text("FORMULA LIVE").font(RacingStyle.Typography.headline).italic()
-                    .lineLimit(1).fixedSize()
-                    .accessibilityAddTraits(.isHeader)
-            }
             if showsTabs {
-                Picker("Section", selection: $tab) {
-                    ForEach(AppSection.allCases) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().fixedSize().padding(.leading, RacingStyle.Space.m)
+                HStack(spacing: RacingStyle.Space.xs) {
+                    ForEach(AppSection.allCases) { section in
+                        Button { tab = section } label: {
+                            Image(systemName: section.symbol)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .background(tab == section ? RacingStyle.raised : .clear, in: RoundedRectangle(cornerRadius: RacingStyle.Radius.row))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(tab == section ? RacingStyle.textPrimary : RacingStyle.textSecondary)
+                        .accessibilityLabel(section.rawValue)
+                        .accessibilityAddTraits(tab == section ? .isSelected : [])
+                        .help(section.rawValue)
+                    }
+                }
             }
             Spacer(minLength: RacingStyle.Space.s)
             // The feed pill describes the live timing connection, so it only appears on that screen.
             if tab.showsFeedStatus { FeedStatusPill(status: feed) }
             Button(action: showSettings) {
-                HStack(spacing: RacingStyle.Space.xs) {
-                    Image(systemName: "gearshape")
-                    // Phones keep just the icon to save width; wider screens say what it is.
-                    if sizeClass != .compact { Text("Connection").font(RacingStyle.Typography.caption.weight(.semibold)).lineLimit(1) }
-                }
-                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                Image(systemName: "gearshape")
+                    .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
             }.buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
-                .accessibilityLabel("Connection settings")
+                .accessibilityLabel("Connection settings").help("Connection settings")
         }
     }
 }
@@ -172,9 +163,10 @@ private struct ConnectionSheet: View {
             TextField("ws://localhost:8787/live", text: $endpoint)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-            Text("OpenF1 credentials stay on the backend.")
-                .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
-            Button("Connect", action: connect).buttonStyle(.borderedProminent).tint(RacingStyle.red)
+            Button(action: connect) {
+                Label("Connect", systemImage: "arrow.right").labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+            }.buttonStyle(.borderedProminent).tint(RacingStyle.red).help("Connect")
         }.padding(RacingStyle.Space.xl).frame(minWidth: 300, idealWidth: 440)
     }
 }

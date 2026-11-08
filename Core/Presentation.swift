@@ -373,6 +373,23 @@ public enum MarkerSpread {
     }
 }
 
+
+extension AppSection {
+    /// Familiar navigation symbols; raw values remain the spoken names.
+    public var symbol: String { self == .live ? "flag.checkered" : "calendar" }
+}
+
+extension FeedStatus {
+    /// The pill already names the state. Only exceptions need a second line.
+    public var timingDetail: String? {
+        switch kind {
+        case .stale: ageText.map { "Timing \($0) old" } ?? "Timing age unknown"
+        case .offline: hasSnapshot ? "Reconnecting…" : "No timing received"
+        case .live, .connecting: nil
+        }
+    }
+}
+
 /// The per-frame placement of driver markers, kept free of SwiftUI so it can be tested and run
 /// inside a drawing closure without touching the view hierarchy.
 public enum MarkerLayout {

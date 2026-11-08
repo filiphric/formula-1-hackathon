@@ -8,6 +8,7 @@ struct ScheduleView: View {
     /// The season the filter was last defaulted for, so a refresh keeps the filter the user picked.
     @State private var defaultedFor = ""
     @State private var refresh = 0
+    @State private var showingDetails = false
     @Environment(\.dynamicTypeSize) private var typeSize
     private var timeZoneName: String { TimeZone.autoupdatingCurrent.identifier }
 
@@ -63,7 +64,7 @@ struct ScheduleView: View {
 
     private func listContent(_ proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-            if store.loading { ProgressView("Loading season…").frame(maxWidth: .infinity).padding(RacingStyle.Space.xl) }
+            if store.loading { ProgressView().accessibilityLabel("Loading season").frame(maxWidth: .infinity).padding(RacingStyle.Space.xl) }
             if let error = store.error, store.schedule != nil {
                 Label("Refresh failed · Showing saved schedule. \(error)", systemImage: "wifi.exclamationmark")
                     .font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
@@ -72,7 +73,7 @@ struct ScheduleView: View {
                 ContentUnavailableView {
                     Label("Schedule unavailable", systemImage: "wifi.exclamationmark")
                 } description: { Text(error) } actions: {
-                    Button("Try again") { refresh += 1 }
+                    Button { refresh += 1 } label: { Label("Try again", systemImage: "arrow.clockwise").labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44) }.help("Try again")
                 }
             }
             if let schedule = store.schedule {
@@ -84,11 +85,7 @@ struct ScheduleView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-            // The title never shares a line with controls that would squeeze it to "Ca…".
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: RacingStyle.Space.s) { title.fixedSize(horizontal: true, vertical: false); Spacer(); seasonControls }
-                VStack(alignment: .leading, spacing: RacingStyle.Space.s) { title; seasonControls }
-            }
+            seasonControls
             Picker("Show races", selection: $filter) {
                 ForEach(ScheduleFilter.allCases) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
@@ -96,18 +93,42 @@ struct ScheduleView: View {
         }
     }
 
-    private var title: some View {
-        Text("Calendar").font(RacingStyle.Typography.display).racingHeading().lineLimit(1)
-            .accessibilityAddTraits(.isHeader)
-    }
-
     private var seasonControls: some View {
         HStack(spacing: RacingStyle.Space.s) {
+            Image(systemName: "calendar")
+                .accessibilityLabel("Calendar").accessibilityAddTraits(.isHeader)
             Picker("Season", selection: $season) {
                 ForEach(RaceSchedule.availableSeasons(), id: \.self) { year in
                     Text(String(year)).tag(year)
                 }
             }.labelsHidden().fixedSize()
+            Spacer()
+            Button { showingDetails = true } label: {
+                Image(systemName: "info.circle").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
+            .accessibilityLabel("Calendar details").help("Calendar details")
+            .popover(isPresented: $showingDetails, arrowEdge: .top) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+                        Text("Calendar details").font(RacingStyle.Typography.title)
+                        Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.")
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let schedule = store.schedule {
+                            Text(schedule.timesCaption(timeZoneIdentifier: timeZoneName))
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let fetched = schedule.fetchedDate {
+                                Label(fetched.formatted(date: .abbreviated, time: .shortened), systemImage: "arrow.clockwise")
+                                    .accessibilityLabel("Calendar fetched \(fetched.formatted(date: .abbreviated, time: .shortened))")
+                            }
+                        }
+                    }
+                    .font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+                    .padding(RacingStyle.Space.xl)
+                }
+                .frame(idealWidth: 320, maxWidth: 320, idealHeight: 300, maxHeight: 360)
+                .presentationCompactAdaptation(.popover)
+            }
             Button { refresh += 1 } label: {
                 Image(systemName: "arrow.clockwise").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
             }
@@ -134,7 +155,7 @@ struct ScheduleView: View {
             let races = schedule.races(matching: filter, at: now)
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                 if store.calendarIsStale() && schedule.mode != "demo" {
-                    Label("Saved schedule · May be out of date. Refresh to check for changes.", systemImage: "clock.badge.exclamationmark")
+                    Label("Saved schedule · May be out of date", systemImage: "clock.badge.exclamationmark")
                         .font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
                 }
                 if races.isEmpty {
@@ -148,7 +169,6 @@ struct ScheduleView: View {
                     }.id(race.round)
                 }
                 if schedule.nextRace(at: now) == nil && !races.isEmpty { seasonComplete }
-                footer(schedule)
             }
             // Land on the next race (or the last one of a finished season), not on the oldest past row.
             .task(id: "\(schedule.season)|\(schedule.fetchedAt)|\(filter.rawValue)") {
@@ -173,13 +193,6 @@ struct ScheduleView: View {
         Label("Season complete", systemImage: "flag.checkered")
             .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textTertiary)
             .frame(maxWidth: .infinity)
-    }
-
-    /// One quiet line: what "past" and "TBC" mean, and when the calendar was fetched.
-    private func footer(_ schedule: RaceSchedule) -> some View {
-        let fetched = schedule.fetchedDate.map { " Fetched \($0.formatted(date: .abbreviated, time: .shortened))." } ?? ""
-        return Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.\(fetched)")
-            .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textTertiary)
     }
 }
 
@@ -290,10 +303,9 @@ private struct WeekendCard: View {
     }
 
     private var countdown: some View {
-        VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
-            Text("Race start").racingLabel().foregroundStyle(RacingStyle.textSecondary)
-            Text(race.countdownText(now: now)).font(RacingStyle.Typography.figure)
-        }
+        Label(race.countdownText(now: now), systemImage: "flag.checkered")
+            .font(RacingStyle.Typography.figure)
+            .accessibilityLabel("Race starts \(race.countdownText(now: now))")
     }
 
     /// Everything that is not the next race: one compact row. At accessibility sizes the round number
@@ -372,7 +384,7 @@ private struct WeekendCard: View {
         VStack(alignment: alignment, spacing: RacingStyle.Space.xs) {
             Text(session.localTime()).font(RacingStyle.Typography.data).foregroundStyle(primary).lineLimit(1).fixedSize()
             if let start = session.startDate, start <= now {
-                Text("Started").font(RacingStyle.Typography.caption).foregroundStyle(secondary)
+                Image(systemName: "clock.badge.checkmark").font(RacingStyle.Typography.caption).foregroundStyle(secondary).accessibilityLabel("Scheduled start has passed").help("Scheduled start has passed")
             }
         }
     }
