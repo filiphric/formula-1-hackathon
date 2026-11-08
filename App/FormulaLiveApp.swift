@@ -23,14 +23,12 @@ private struct RootView: View {
     @State private var tab = AppSection(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .live
 
     var body: some View {
-        // One clock drives the app bar's pill and the session hero, so they can never disagree.
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let feed = FeedStatus.resolve(snapshot: store.snapshot, connected: store.connected,
-                                          hasError: store.error != nil, now: context.date)
-            VStack(spacing: 0) {
+        // Only the bar's pill ticks every second (see `FeedClock`); the tabs and their scrolling content do not.
+        VStack(spacing: 0) {
+            FeedClock(store: store) { feed in
                 AppBar(feed: feed, tab: $tab, showsTabs: tabsInBar, showSettings: { showingSettings = true })
-                content(feed: feed)
             }
+            content
         }
         .background(RacingStyle.background.ignoresSafeArea())
         .tint(RacingStyle.accentText)
@@ -57,18 +55,18 @@ private struct RootView: View {
         #endif
     }
 
-    @ViewBuilder private func content(feed: FeedStatus) -> some View {
+    @ViewBuilder private var content: some View {
         let scheduleEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         if tabsInBar {
             ZStack {
-                DashboardView(store: store, feed: feed)
+                DashboardView(store: store, endpoint: scheduleEndpoint)
                     .opacity(tab == .live ? 1 : 0).allowsHitTesting(tab == .live).accessibilityHidden(tab != .live)
                 ScheduleView(endpoint: scheduleEndpoint)
                     .opacity(tab == .schedule ? 1 : 0).allowsHitTesting(tab == .schedule).accessibilityHidden(tab != .schedule)
             }
         } else {
             TabView(selection: $tab) {
-                DashboardView(store: store, feed: feed).tag(AppSection.live)
+                DashboardView(store: store, endpoint: scheduleEndpoint).tag(AppSection.live)
                     .tabItem { Image(systemName: AppSection.live.symbol).accessibilityLabel(AppSection.live.rawValue) }
                 ScheduleView(endpoint: scheduleEndpoint).tag(AppSection.schedule)
                     .tabItem { Image(systemName: AppSection.schedule.symbol).accessibilityLabel(AppSection.schedule.rawValue) }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ScheduleView: View {
     let endpoint: String
     @State private var store = ScheduleStore()
+    @State private var results = ResultsStore()
     @State private var season = Calendar.current.component(.year, from: .now)
     @State private var filter = ScheduleFilter.all
     /// The season the filter was last defaulted for, so a refresh keeps the filter the user picked.
@@ -51,6 +52,7 @@ struct ScheduleView: View {
         }
         .background(RacingStyle.background)
         .task(id: "\(endpoint)|\(season)|\(refresh)") {
+            results.reset()
             await store.load(endpoint: endpoint, season: season)
             // Open on what is coming: Upcoming while races remain, All once the season is over.
             let key = "\(endpoint)|\(season)"
@@ -109,7 +111,7 @@ struct ScheduleView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                         Text("Calendar details").font(RacingStyle.Typography.title)
-                        Text("Past means the scheduled race start has passed; results are not tracked. TBC times are not yet published.")
+                        Text("Past means the scheduled race start has passed. Open a past race to see its results, which can take a while to appear after the flag. TBC times are not yet published.")
                             .fixedSize(horizontal: false, vertical: true)
                         if let schedule = store.schedule {
                             Text(schedule.timesCaption(timeZoneIdentifier: timeZoneName))
@@ -162,7 +164,7 @@ struct ScheduleView: View {
                     let emphasis = WeekendEmphasis(race: race, nextRound: next, now: now)
                     VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
                         if emphasis == .past && (index == 0 || !races[index - 1].isPast(at: now)) { completedHeader }
-                        WeekendCard(race: race, emphasis: emphasis, now: now)
+                        WeekendCard(race: race, emphasis: emphasis, now: now, endpoint: endpoint, season: schedule.season, results: results)
                     }.id(race.round)
                 }
                 if schedule.nextRace(at: now) == nil && !races.isEmpty { seasonComplete }
@@ -197,13 +199,19 @@ private struct WeekendCard: View {
     let race: RaceWeekend
     let emphasis: WeekendEmphasis
     let now: Date
+    let endpoint: String
+    let season: Int
+    let results: ResultsStore
     @State private var expanded: Bool
     @Environment(\.dynamicTypeSize) private var typeSize
 
-    init(race: RaceWeekend, emphasis: WeekendEmphasis, now: Date) {
+    init(race: RaceWeekend, emphasis: WeekendEmphasis, now: Date, endpoint: String, season: Int, results: ResultsStore) {
         self.race = race
         self.emphasis = emphasis
         self.now = now
+        self.endpoint = endpoint
+        self.season = season
+        self.results = results
         _expanded = State(initialValue: emphasis.startsExpanded)
     }
 
@@ -224,7 +232,20 @@ private struct WeekendCard: View {
             .accessibilityLabel(spokenSummary)
             .accessibilityValue(expanded ? "Expanded" : "Collapsed")
             .accessibilityHint(expanded ? "Hides the sessions" : "Shows the sessions")
-            if expanded { sessions }
+            if expanded {
+                if isPast {
+                    ResultsSection(race: race, phase: results.phases[race.round]) {
+                        results.retry(round: race.round)
+                        Task { await results.load(round: race.round, endpoint: endpoint, season: season) }
+                    }
+                }
+                sessions
+            }
+        }
+        // Results are fetched the first time a finished weekend is opened, not for the whole season up front.
+        .task(id: expanded && isPast) {
+            guard expanded && isPast else { return }
+            await results.load(round: race.round, endpoint: endpoint, season: season)
         }
         .racingCard(emphasis == .next ? .regular : .compact)
         .overlay(alignment: .top) {
@@ -269,12 +290,27 @@ private struct WeekendCard: View {
             // The chevron's 44pt hit area is taller than the badge; pull the row back up so the card keeps its rhythm.
             .padding(.vertical, -RacingStyle.Space.s)
             Text(race.name).font(RacingStyle.Typography.display).racingHeading().multilineTextAlignment(.leading)
-            Text(race.circuit).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+            // The circuit's outline beside its name (the name wraps to make room); at accessibility text
+            // sizes the name needs the whole width, so the outline drops underneath.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: RacingStyle.Space.s) { circuitName; heroMinimap }
+            } else {
+                HStack(alignment: .center, spacing: RacingStyle.Space.m) { circuitName; Spacer(minLength: RacingStyle.Space.s); heroMinimap }
+            }
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .lastTextBaseline) { dates; Spacer(); countdown }
                 VStack(alignment: .leading, spacing: RacingStyle.Space.s) { dates; countdown }
             }
         }
+    }
+
+    private var circuitName: some View {
+        Text(race.circuit).font(RacingStyle.Typography.body).foregroundStyle(RacingStyle.textSecondary)
+            .multilineTextAlignment(.leading)
+    }
+
+    private var heroMinimap: some View {
+        CircuitMinimap(circuit: race.circuit, color: RacingStyle.textPrimary, size: CGSize(width: 112, height: 76), lineWidth: 3.5)
     }
 
     private var badge: some View {
@@ -310,7 +346,7 @@ private struct WeekendCard: View {
     @ViewBuilder private var row: some View {
         if typeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
-                HStack { roundNumber; Spacer(minLength: RacingStyle.Space.s); chevron }
+                HStack { roundNumber; Spacer(minLength: RacingStyle.Space.s); minimap; chevron }
                 rowTitle
                 meta
             }
@@ -322,10 +358,16 @@ private struct WeekendCard: View {
                     meta
                 }
                 Spacer(minLength: RacingStyle.Space.s)
+                minimap
                 chevron
             }
             .frame(minHeight: 44)
         }
+    }
+
+    /// The circuit's outline, as quiet as the rest of the row.
+    private var minimap: some View {
+        CircuitMinimap(circuit: race.circuit, color: isPast ? RacingStyle.textTertiary : secondary)
     }
 
     private var roundNumber: some View {
@@ -382,6 +424,107 @@ private struct WeekendCard: View {
             Text(session.localTime()).font(RacingStyle.Typography.data).foregroundStyle(primary).lineLimit(1).fixedSize()
             if let start = session.startDate, start <= now {
                 Image(systemName: "clock.badge.checkmark").font(RacingStyle.Typography.caption).foregroundStyle(secondary).accessibilityLabel("Scheduled start has passed").help("Scheduled start has passed")
+            }
+        }
+    }
+}
+
+/// The finishing order of a past race, shown above its sessions.
+private struct ResultsSection: View {
+    let race: RaceWeekend
+    let phase: ResultsStore.Phase?
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
+            Divider().overlay(RacingStyle.raised)
+            Label("Results", systemImage: "flag.checkered")
+                .racingLabel().foregroundStyle(RacingStyle.textSecondary)
+                .accessibilityAddTraits(.isHeader)
+            switch phase {
+            case .loaded(let results): loaded(results)
+            case .failed:
+                HStack {
+                    Text("Results unavailable").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                    Spacer()
+                    Button(action: retry) {
+                        Image(systemName: "arrow.clockwise").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
+                    .accessibilityLabel("Try loading results again")
+                }
+            case .loading, nil:
+                ProgressView().accessibilityLabel("Loading results").frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.top, RacingStyle.Space.s)
+    }
+
+    @ViewBuilder private func loaded(_ results: RaceResults) -> some View {
+        if results.entries.isEmpty {
+            Text("Results not published yet").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+        } else {
+            VStack(spacing: RacingStyle.Space.m) {
+                ForEach(results.entries) { ResultRow(entry: $0) }
+            }
+            if results.mode == "demo" {
+                Text(results.source).font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusDemo))
+            } else if results.stale {
+                Label("Saved results · May be out of date", systemImage: "clock.badge.exclamationmark")
+                    .font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+            } else {
+                Text("Results from \(results.source)").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textTertiary)
+            }
+        }
+    }
+}
+
+private struct ResultRow: View {
+    let entry: ResultEntry
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: RacingStyle.Space.m) {
+                position
+                driver
+                Spacer(minLength: RacingStyle.Space.s)
+                outcome(alignment: .trailing)
+            }
+            VStack(alignment: .leading, spacing: RacingStyle.Space.xs) {
+                HStack(spacing: RacingStyle.Space.m) { position; driver }
+                outcome(alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(entry.spokenSummary)
+    }
+
+    private var position: some View {
+        Text(entry.positionText)
+            .font(RacingStyle.Typography.figure)
+            .foregroundStyle(entry.isClassified ? RacingStyle.textPrimary : RacingStyle.textTertiary)
+            .frame(minWidth: 36, alignment: .leading).lineLimit(1)
+    }
+
+    private var driver: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: RacingStyle.Space.xs) {
+                Text(entry.name).font(RacingStyle.Typography.bodyStrong).foregroundStyle(RacingStyle.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if entry.fastestLap {
+                    Image(systemName: "stopwatch").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                }
+            }
+            Text(entry.team).font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+        }
+    }
+
+    private func outcome(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 0) {
+            Text(entry.outcome).font(RacingStyle.Typography.data).foregroundStyle(RacingStyle.textPrimary).lineLimit(1).fixedSize()
+            if let points = entry.pointsText {
+                Text("\(points) pts").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
             }
         }
     }

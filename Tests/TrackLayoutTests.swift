@@ -61,3 +61,47 @@ private func trackSnapshot(mode: String = "live", upstream: String = "connected"
     let stale = try #require(TrackLayout.parseDate("2026-11-06T12:00:20Z"))
     #expect(try trackSnapshot().trackStatus(at: stale, connected: true) == "Stale · No recent driver locations")
 }
+
+// MARK: Circuit orientation
+// OpenF1 coordinates are in the timing system's own frame, so a circuit drawn raw can face any way.
+// Each circuit has a rotation (degrees, counter-clockwise, y up) that turns it to the official map.
+
+@Test func knownCircuitsHaveTheirOfficialMapRotationAndUnknownOnesAreLeftAlone() {
+    #expect(CircuitOrientation.rotation(forCircuit: "Interlagos") == 258)
+    #expect(CircuitOrientation.rotation(forCircuit: "Monza") == 95)
+    #expect(CircuitOrientation.rotation(forCircuit: "Austin") == 0)
+    #expect(CircuitOrientation.rotation(forCircuit: "Demo Grand Prix") == 0)
+    #expect(CircuitOrientation.rotation(forCircuit: "Somewhere new") == 0)
+    #expect(CircuitOrientation.rotation(forCircuit: nil) == 0)
+}
+
+@Test func rotationTurnsTheProjectionAndTheBoundingBoxTogether() throws {
+    let track = try #require(try trackSnapshot().track)   // x -100...100, y -50...50
+    // A quarter turn counter-clockwise (y up) sends the east end of the circuit to the top.
+    let turned = try #require(track.projection(width: 300, height: 400, rotationDegrees: 90))
+    let east = try #require(turned.project(x: 100, y: 0))
+    let west = try #require(turned.project(x: -100, y: 0))
+    #expect(abs(east.x - 150) < 0.001 && abs(east.y - 32) < 0.001)
+    #expect(abs(west.x - 150) < 0.001 && abs(west.y - 368) < 0.001)
+    // The 2:1 circuit becomes 1:2, and no rotation leaves the old answer untouched.
+    #expect(abs(try #require(track.aspectRatio(rotationDegrees: 90)) - 0.5) < 0.001)
+    #expect(track.aspectRatio(rotationDegrees: 0) == track.aspectRatio)
+    let plain = try #require(track.projection(width: 400, height: 300))
+    let zero = try #require(track.projection(width: 400, height: 300, rotationDegrees: 0))
+    #expect(plain.project(x: -100, y: 50) == zero.project(x: -100, y: 50))
+}
+
+@Test func interlagosRunsItsPitStraightAlongTheTopAndIsWiderThanTall() throws {
+    let url = try #require(Bundle.module.url(forResource: "interlagos-track", withExtension: "json", subdirectory: "Fixtures"))
+    let track = try JSONDecoder().decode(TrackLayout.self, from: Data(contentsOf: url))
+    let rotation = CircuitOrientation.rotation(forCircuit: "Interlagos")
+    // Raw, the circuit is a tall portrait with the start line on its left edge.
+    #expect(try #require(track.aspectRatio) < 0.7)
+    // Oriented like the official map it is landscape, and the start/finish line is in the top fifth of the circuit.
+    #expect(try #require(track.aspectRatio(rotationDegrees: rotation)) > 1.3)
+    let projection = try #require(track.projection(width: 400, height: 400, rotationDegrees: rotation))
+    let start = try #require(projection.project(x: track.points[0].x, y: track.points[0].y))
+    let drawn = track.points.compactMap { projection.project(x: $0.x, y: $0.y) }
+    let top = try #require(drawn.map(\.y).min()), bottom = try #require(drawn.map(\.y).max())
+    #expect(start.y - top < (bottom - top) * 0.2)
+}

@@ -33,7 +33,8 @@ final class TimingStore {
                         case .string(let value): data = Data(value.utf8)
                         @unknown default: continue
                         }
-                        snapshot = try TimingSnapshot.decode(data)
+                        // Decode off the main actor so a large snapshot never stalls scrolling.
+                        snapshot = try await Task.detached(priority: .userInitiated) { try TimingSnapshot.decode(data) }.value
                         connected = true
                         status = "Connected"
                         error = nil

@@ -58,6 +58,40 @@ Demo mode animates four markers around an explicitly fictional circuit, without
 contacting OpenF1. It does not reproduce a real race. Live location delivery needs
 a paid OpenF1 connection and an active session.
 
+## Flags
+
+A yellow or red flag shows on every page of the race centre, in a banner under the session title, and on
+the track map. The banner lists what is out in words and a symbol as well as colour: a red flag, the
+safety car or virtual safety car, and the sectors under yellow or double yellow ("Double yellow ·
+sectors 12, 13"). On the map a red flag, safety car or virtual safety car colours the whole circuit (the
+virtual safety car dashed), and each yellow sector lights up its own stretch of track with its number; a
+double yellow also gets a dashed stripe. Flags from a feed that is stale or offline are labelled *Last
+known* and drawn fainter, demo flags say *Demo · simulated flags*, and the flags of a finished session
+are not shown.
+
+The backend works out what is flagged from the session's whole `race_control` history (the app only
+lists the newest 100 messages, and a session can run past that) and sends it as an optional `flags`
+object, so older servers and older apps keep working:
+
+```json
+"flags": {"track": "clear | red | safetyCar | virtualSafetyCar", "trackSince": "…" | null,
+          "sectors": [{"sector": 12, "flag": "yellow | doubleYellow", "since": "…"}]}
+```
+
+Rules, taken from real OpenF1 sessions: a sector is flagged from its `YELLOW`/`DOUBLE YELLOW` message
+(`scope: "Sector"`) until its own `CLEAR`; `TRACK CLEAR` withdraws every flag and ends a red flag or
+safety car; `VSC ENDING` ends the virtual safety car (it is often not followed by `TRACK CLEAR`);
+`SESSION FINISHED` ends everything raised before it; blue and black-and-white flags are shown to one
+driver and say nothing about the track.
+
+Race control names a sector by number only. `Core/MarshalSectorData.swift` holds where each marshal
+sector starts, per circuit, from MultiViewer's public circuit data (generated, see
+`Scripts/generate-marshal-sectors.py`). A sector is the stretch of the recorded lap between its start and
+the next sector's start. Circuits whose published layout disagrees with the sector numbers race control
+sent this season, and circuits MultiViewer does not have yet, are left out; for those the banner still
+names the flagged sectors and the map says their positions are not available. Positions are only as
+good as that data and the approximate outline, so treat a highlighted stretch as indicative.
+
 ## Schedule
 
 The **Schedule** tab shows each season from 2023 through next year, with All,
@@ -65,7 +99,9 @@ Upcoming and Past filters. Expand a weekend for practice, qualifying, sprint
 qualifying, sprint and race start times. All published instants are converted to
 the device timezone, including the local calendar date and daylight saving time.
 Unpublished times remain **Time TBC**. Past means the scheduled race start has
-passed; the calendar does not claim a race has finished or show results.
+passed. Open a past weekend to see its race results: finishing order, race time or gap,
+status for lapped and retired drivers, points and the fastest lap. A race that has just
+finished shows "Results not published yet" until the source has the classification.
 
 The Rust backend exposes `GET /schedule/{year}` independently of the existing
 timing JSON contract. In normal mode it uses the public
@@ -75,6 +111,12 @@ for 15 minutes. If refresh fails, the last fetched calendar is returned with
 `stale: true`; without cached data the server returns HTTP 502 and the app offers
 retry. The app displays the source, fetch time and stale warning. Use Refresh to
 check again after the cache interval. Restarting the backend clears this cache.
+
+`GET /results/{year}/{round}` returns the race classification from the same Jolpica
+source, fetched only when a past weekend is opened and cached for 15 minutes (an empty,
+unpublished classification is never cached). A failed refresh returns the saved results
+with `stale: true`; otherwise HTTP 502. Invalid seasons or rounds return HTTP 400.
+`--demo` returns four fictional sample rows labelled as demo results.
 
 `--demo` returns two explicitly fictional sample weekends per selected season,
 including a sprint weekend, without making calendar network requests. A future
@@ -160,6 +202,8 @@ to the internet.
 - `Core/` — Codable/Sendable timing models, also available as a Swift package.
 - `Backend/` — Rust server: Tokio, Axum HTTP/WebSockets, rumqttc MQTT/TLS, and reqwest REST.
 - `Tests/` — Swift decoding/formatting tests.
+- `Scripts/generate-circuit-shapes.py`, `Scripts/generate-marshal-sectors.py` — regenerate the calendar
+  outlines and the marshal sector starts from public MultiViewer data (need network access).
 - `Scripts/generate-project.rb` — optional Xcode project regeneration (Ruby `xcodeproj` gem).
   The generated project is checked in; regeneration is not needed to build.
 
@@ -177,7 +221,7 @@ xcodebuild -project FormulaLive.xcodeproj -scheme FormulaLive \
 ```
 
 The backend tests cover out-of-order events, session isolation, mixed interval
-values, lap corrections and bounded race-control history. Integration tests start
+values, lap corrections, bounded race-control history and the flag rules above. Integration tests start
 the Rust demo server and validate its health endpoint, WebSocket snapshots and graceful
 shutdown. Authentication tests use a local mock upstream to verify credential encoding,
 bearer headers, token caching and renewal.

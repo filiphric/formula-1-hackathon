@@ -147,19 +147,33 @@ public struct FeedStatus: Equatable, Sendable {
 
 extension TimingDriver {
     /// The gap as a spoken phrase: "2.431 seconds behind the leader", "1 lap behind the leader".
-    public var spokenGap: String {
-        guard let gap = gap?.trimmingCharacters(in: .whitespaces), !gap.isEmpty else {
-            return position == 1 ? "leader" : "gap unavailable"
+    public var spokenGap: String { Self.spokenGap(gap, leader: position == 1, behind: "the leader") }
+
+    /// The gap to the car ahead: "1.187 seconds behind the car ahead".
+    public var spokenInterval: String { Self.spokenGap(interval, leader: position == 1, behind: "the car ahead") }
+
+    private static func spokenGap(_ value: String?, leader: Bool, behind reference: String) -> String {
+        guard let gap = value?.trimmingCharacters(in: .whitespaces), !gap.isEmpty else {
+            return leader ? "leader" : "gap unavailable"
         }
         let upper = gap.uppercased()
         if upper.hasPrefix("+"), upper.hasSuffix("LAP") || upper.hasSuffix("LAPS") {
             let count = upper.dropFirst().split(separator: " ").first.map(String.init) ?? "1"
-            return "\(count) \(count == "1" ? "lap" : "laps") behind the leader"
+            return "\(count) \(count == "1" ? "lap" : "laps") behind \(reference)"
         }
         if upper.hasPrefix("+"), Double(upper.dropFirst()) != nil {
-            return "\(gap.dropFirst()) seconds behind the leader"
+            return "\(gap.dropFirst()) seconds behind \(reference)"
         }
         return "gap \(gap)"
+    }
+
+    /// The timing column's figure as a spoken phrase.
+    public func spokenTiming(_ metric: TimingMetric) -> String {
+        switch metric {
+        case .interval: spokenInterval
+        case .gapToLeader: spokenGap
+        case .fastestLap: formattedBestLap == "—" ? "fastest lap unavailable" : "fastest lap \(formattedBestLap)"
+        }
     }
 
     /// One sentence for VoiceOver: position, driver, team, gap, last lap, tyre.
@@ -167,9 +181,14 @@ extension TimingDriver {
 
     /// Same sentence; without a gap column the gap is left out instead of saying "gap unavailable" on every row.
     public func accessibilitySummary(showingGap: Bool) -> String {
+        accessibilitySummary(showingGap: showingGap, metric: .gapToLeader)
+    }
+
+    /// Same sentence with the timing column's current figure in place of the gap to the leader.
+    public func accessibilitySummary(showingGap: Bool, metric: TimingMetric) -> String {
         let place = position.map { "Position \($0)" } ?? "Position unavailable"
         let lap = formattedLap == "—" ? "last lap unavailable" : "last lap \(formattedLap)"
-        let parts = [place, name, team] + (showingGap ? [spokenGap] : []) + [lap, TyreCompound(compound).label]
+        let parts = [place, name, team] + (showingGap ? [spokenTiming(metric)] : []) + [lap, TyreCompound(compound).label]
         return parts.joined(separator: ", ")
     }
 }

@@ -39,3 +39,46 @@ final class ScheduleStore {
         }
     }
 }
+
+/// Race results, fetched the first time a finished weekend is opened and kept for the season being shown.
+@MainActor @Observable
+final class ResultsStore {
+    enum Phase { case loading, loaded(RaceResults), failed }
+    private(set) var phases: [Int: Phase] = [:]
+    private var scope = ""
+
+    /// Loads one round unless it is already loading or loaded. A failed round is retried on the next call.
+    func load(round: Int, endpoint: String, season: Int) async {
+        let key = "\(endpoint)|\(season)"
+        if scope != key { scope = key; phases = [:] }
+        switch phases[round] {
+        case .loading, .loaded: return
+        default: break
+        }
+        guard let url = RaceResults.endpoint(from: endpoint, season: season, round: round) else {
+            phases[round] = .failed
+            return
+        }
+        phases[round] = .loading
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 25
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+                throw URLError(.badServerResponse)
+            }
+            let result = try JSONDecoder().decode(RaceResults.self, from: data)
+            guard result.season == season, result.round == round else { throw URLError(.cannotParseResponse) }
+            if scope == key { phases[round] = .loaded(result) }
+        } catch {
+            // A cancelled load (the card folded, the season changed) is not a failure to show.
+            if scope == key { phases[round] = Task.isCancelled ? nil : .failed }
+        }
+    }
+
+    /// Forget one round, so the next `load` asks the backend again.
+    func retry(round: Int) { phases[round] = nil }
+
+    func reset() { phases = [:] }
+}

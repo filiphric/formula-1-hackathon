@@ -1,4 +1,4 @@
-use crate::{schedule::Calendar, state::TimingState};
+use crate::{results::Results, schedule::Calendar, standings::StandingsFeed, state::TimingState};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -20,6 +20,8 @@ struct AppState {
     timing: SharedState,
     shutdown: watch::Receiver<bool>,
     calendar: Arc<Calendar>,
+    results: Arc<Results>,
+    standings: Arc<StandingsFeed>,
 }
 
 pub fn router(timing: SharedState, shutdown: watch::Receiver<bool>) -> Router {
@@ -27,11 +29,15 @@ pub fn router(timing: SharedState, shutdown: watch::Receiver<bool>) -> Router {
         timing,
         shutdown,
         calendar: Arc::new(Calendar::default()),
+        results: Arc::new(Results::default()),
+        standings: Arc::new(StandingsFeed::default()),
     };
     Router::new()
         .route("/health", get(health))
         .route("/live", get(upgrade))
         .route("/schedule/{year}", get(schedule))
+        .route("/results/{year}/{round}", get(results))
+        .route("/standings/{year}", get(standings))
         .with_state(state)
 }
 
@@ -50,6 +56,47 @@ async fn schedule(Path(year): Path<i32>, State(state): State<AppState>) -> impl 
         Err(_) => (
             StatusCode::BAD_GATEWAY,
             Json(json!({"error":"Calendar unavailable. Try again later."})),
+        )
+            .into_response(),
+    }
+}
+
+async fn results(
+    Path((year, round)): Path<(i32, u32)>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    if !crate::results::valid_race(year, round) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"Unsupported race"})),
+        )
+            .into_response();
+    }
+    let demo = state.timing.read().await.mode == "demo";
+    match state.results.load(year, round, demo).await {
+        Ok(results) => Json(results).into_response(),
+        Err(_) => (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error":"Results unavailable. Try again later."})),
+        )
+            .into_response(),
+    }
+}
+
+async fn standings(Path(year): Path<i32>, State(state): State<AppState>) -> impl IntoResponse {
+    if !crate::standings::valid_season(year) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"Unsupported season"})),
+        )
+            .into_response();
+    }
+    let demo = state.timing.read().await.mode == "demo";
+    match state.standings.load(year, demo).await {
+        Ok(standings) => Json(standings).into_response(),
+        Err(_) => (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error":"Standings unavailable. Try again later."})),
         )
             .into_response(),
     }

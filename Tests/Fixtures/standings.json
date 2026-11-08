@@ -1,0 +1,14 @@
+{
+  "season": 2025,
+  "round": 24,
+  "mode": "standings",
+  "source": "Jolpica F1",
+  "fetchedAt": "2025-12-08T12:00:00+00:00",
+  "stale": false,
+  "entries": [
+    {"position": 1, "code": "NOR", "name": "Lando Norris", "team": "McLaren", "points": 423.0, "wins": 7},
+    {"position": 2, "code": "VER", "name": "Max Verstappen", "team": "Red Bull", "points": 421.0, "wins": 8},
+    {"position": 3, "code": "PIA", "name": "Oscar Piastri", "team": "McLaren", "points": 410.0, "wins": 7},
+    {"position": 4, "code": null, "name": "Jack Doohan", "team": "Alpine F1 Team", "points": 0.5, "wins": 0}
+  ]
+}

@@ -26,3 +26,34 @@ import Testing
     #expect(disconnected.timingDetail == "Reconnecting…")
     #expect(status(upstream: "subscribing", date: nil).timingDetail == nil)
 }
+
+@Test func eventScreenSwipesFromRunningOrderToLiveTrackToRaceControl() {
+    // The request: current order on one page, the live track on the next, race control, then team radio, then the live championship.
+    #expect(DashboardPage.allCases == [.order, .track, .raceControl, .radio, .championship])
+    #expect(DashboardPage.allCases.map(\.rawValue) == ["Running order", "Live track", "Race control", "Team radio", "Championship"])
+    #expect(Set(DashboardPage.allCases.map(\.symbol)).count == 5)
+}
+
+@Test func swipingPastTheLastPageCyclesToTheFirstAndBack() throws {
+    // The request: swiping on the last screen cycles the view. After the last page comes the first
+    // again; before the first page comes the last.
+    let first = try #require(DashboardPage.allCases.first)
+    let last = try #require(DashboardPage.allCases.last)
+    let slots = DashboardPage.loopSlots.map { DashboardPage(slot: $0) }
+    #expect(slots == [last] + DashboardPage.allCases + [first])
+    // Swiping forward from the last page lands on a clone of the first, which settles on the real first page.
+    let pastLast = last.slot + 1
+    #expect(DashboardPage.isClone(slot: pastLast))
+    #expect(DashboardPage(slot: pastLast) == first)
+    #expect(DashboardPage.settledSlot(pastLast) == first.slot)
+    // Swiping back from the first page lands on a clone of the last.
+    let beforeFirst = first.slot - 1
+    #expect(DashboardPage.isClone(slot: beforeFirst))
+    #expect(DashboardPage(slot: beforeFirst) == last)
+    #expect(DashboardPage.settledSlot(beforeFirst) == last.slot)
+    // Real pages stay where they are.
+    for page in DashboardPage.allCases {
+        #expect(!DashboardPage.isClone(slot: page.slot))
+        #expect(DashboardPage.settledSlot(page.slot) == page.slot)
+    }
+}
