@@ -8,11 +8,15 @@ Dir.glob(File.join(root, '{App,Core}', '*.swift')).sort.each do |path|
   reference = group.new_file(path.delete_prefix(root + '/'))
   target.source_build_phase.add_file_reference(reference)
 end
+assets = group.new_file('App/Assets.xcassets')
+target.resources_build_phase.add_file_reference(assets)
 target.build_configurations.each do |config|
   config.base_configuration_reference = config_reference
   config.build_settings.merge!({
     'PRODUCT_BUNDLE_IDENTIFIER' => 'dev.formulalive.app',
     'PRODUCT_NAME' => 'FormulaLive',
+    'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
+    'ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME' => 'AccentColor',
     'MARKETING_VERSION' => '0.1.0',
     'CURRENT_PROJECT_VERSION' => '1',
     'SWIFT_VERSION' => '6.0',

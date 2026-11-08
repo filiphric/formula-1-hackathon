@@ -1,0 +1,29 @@
+name: Swift app
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify generated project branding
+        run: |
+          gem install xcodeproj --version 1.25.0 --user-install --no-document
+          ruby Scripts/test-generate-project.rb
+      - name: Test shared models
+        run: swift test
+      - name: Build macOS app
+        run: >-
+          xcodebuild -project FormulaLive.xcodeproj -scheme FormulaLive
+          -destination 'platform=macOS' -derivedDataPath DerivedData
+          CODE_SIGNING_ALLOWED=NO build
+      - name: Verify bundled F1 artwork
+        run: swift Scripts/verify-logo.swift DerivedData/Build/Products/Debug/FormulaLive.app
+      - name: Build iOS app
+        run: >-
+          xcodebuild -project FormulaLive.xcodeproj -scheme FormulaLive
+          -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData
+          CODE_SIGNING_ALLOWED=NO build

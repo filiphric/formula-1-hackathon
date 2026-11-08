@@ -22,6 +22,7 @@
 		ECC29A2F8EC47D255F5D572C /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0E32A1FD65A8D098FD320A /* ScheduleView.swift */; };
 		B1C2D3E4F5061728394A5B6C /* Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* Presentation.swift */; };
 		D1E2F3A4B5C60718394A5B6D /* TimingTower.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */; };
+		F10000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* Assets.xcassets */; };
 		6F3E8B21C4DA5072B9E1F203 /* ServerEndpointSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2D7A10B3C94F61A8D0E1F2 /* ServerEndpointSeed.swift */; };
 /* End PBXBuildFile section */
 
@@ -43,6 +44,7 @@
 		A1B2C3D4E5F60718293A4B5C /* Presentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Presentation.swift; path = Core/Presentation.swift; sourceTree = "<group>"; };
 		C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TimingTower.swift; path = App/TimingTower.swift; sourceTree = "<group>"; };
 		7A1C0F2E9B3D4C5E8F6A1B2C /* Config.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		F10000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = App/Assets.xcassets; sourceTree = "<group>"; };
 		5E2D7A10B3C94F61A8D0E1F2 /* ServerEndpointSeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ServerEndpointSeed.swift; path = Core/ServerEndpointSeed.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -85,6 +87,7 @@
 		54B882DFD8937BC3C650039D /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				F10000000000000000000002 /* Assets.xcassets */,
 				0BB4009AC0DE0B45929ED0A0 /* DashboardView.swift */,
 				C1D2E3F4A5B60718293A4B5D /* TimingTower.swift */,
 				8C413510E83A5021B9019C61 /* FormulaLiveApp.swift */,
@@ -167,6 +170,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F10000000000000000000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

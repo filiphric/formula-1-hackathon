@@ -119,8 +119,21 @@ private struct AppBar: View {
 
     private func bar(showName: Bool) -> some View {
         HStack(spacing: RacingStyle.Space.m) {
-            Image(systemName: "flag.checkered").font(RacingStyle.Typography.title).foregroundStyle(RacingStyle.red)
-                .accessibilityHidden(true)
+            VStack(spacing: RacingStyle.Space.xs) {
+                Image("F1Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 64, height: 16)
+                Text("Unofficial")
+                    .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+            // Logo (16) + gap (4) + caption (about 18 at the bar's xxxLarge cap) is 38pt. This 40pt block fits that and
+            // stays under the bar's 48pt minimum, so the disclosure never changes the bar height or the tabs' alignment.
+            .frame(width: 64, height: 40)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Unofficial Formula 1 companion")
+            .help("Unofficial Formula 1 companion · Powered by OpenF1")
             if showName {
                 Text("FORMULA LIVE").font(RacingStyle.Typography.headline).italic()
                     .lineLimit(1).fixedSize()
