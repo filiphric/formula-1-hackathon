@@ -177,10 +177,12 @@ public struct TrackProjection: Sendable {
 }
 
 extension TimingSnapshot {
-    /// The flags worth showing now. Once a real session is over and no car is reporting a position,
-    /// whatever was last flagged is history, so nothing is shown. Demo flags are always shown.
+    /// The flags worth showing now. Once a real session is past its scheduled end and no car is reporting a
+    /// position, whatever yellow or safety car was last flagged is history, so nothing is shown. A red flag
+    /// is the exception: it is what extends a session past its schedule, and cars at rest may report nothing.
+    /// Demo flags are always shown.
     public func activeFlags(at now: Date) -> FlagStatus {
-        if mode == "demo" { return flags }
+        if mode == "demo" || flags.track == .red { return flags }
         if let end = session.flatMap({ TrackLayout.parseDate($0.end) }), now > end,
            !drivers.compactMap(\.location).contains(where: { !$0.isStale(at: now) }) {
             return .clear

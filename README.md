@@ -78,8 +78,9 @@ safety car or virtual safety car, and the sectors under yellow or double yellow 
 sectors 12, 13"). On the map a red flag, safety car or virtual safety car colours the whole circuit (the
 virtual safety car dashed), and each yellow sector lights up its own stretch of track with its number; a
 double yellow also gets a dashed stripe. Flags from a feed that is stale or offline are labelled *Last
-known* and drawn fainter, demo flags say *Demo · simulated flags*, and the flags of a finished session
-are not shown.
+known* and drawn fainter, demo flags say *Demo · simulated flags*, and the yellow and safety-car flags of a
+finished session are not shown (a red flag is, because it is what extends a session). The banner sits under the
+app bar on both tabs.
 
 The backend works out what is flagged from the session's whole `race_control` history (the app only
 lists the newest 100 messages, and a session can run past that) and sends it as an optional `flags`
@@ -93,7 +94,7 @@ object, so older servers and older apps keep working:
 Rules, taken from real OpenF1 sessions: a sector is flagged from its `YELLOW`/`DOUBLE YELLOW` message
 (`scope: "Sector"`) until its own `CLEAR`; `TRACK CLEAR` withdraws every flag and ends a red flag or
 safety car; `VSC ENDING` ends the virtual safety car (it is often not followed by `TRACK CLEAR`);
-`SESSION FINISHED` ends everything raised before it; blue and black-and-white flags are shown to one
+`SESSION FINISHED` ends everything raised before it, and `SESSION STARTED` ends a red flag whose `TRACK CLEAR` was missed; blue and black-and-white flags are shown to one
 driver and say nothing about the track.
 
 Race control names a sector by number only. `Core/MarshalSectorData.swift` holds where each marshal

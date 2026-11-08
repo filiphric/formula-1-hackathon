@@ -146,8 +146,8 @@ struct TrackMapView: View {
                             select: { selectedDriver = $0 })
                         accessibilityMarkers(projection, size: geometry.size, now: now)
                     }
-                    if !flags.sectors.isEmpty, sectors == nil {
-                        sectorsUnknownNote(flags)
+                    if let note = unmappedSectorsNote(flags, sectors) {
+                        sectorsUnknownNote(note)
                             .position(x: geometry.size.width / 2, y: geometry.size.height - 18)
                     }
                     if let notLive {
@@ -233,9 +233,18 @@ struct TrackMapView: View {
             .accessibilityHidden(true)
     }
 
-    /// Shown when a sector is flagged but this circuit's sectors cannot be placed on the outline.
-    private func sectorsUnknownNote(_ flags: FlagStatus) -> some View {
-        Text("Sector positions are not available for this circuit")
+    /// What to say when a flagged sector cannot be shown: the circuit's sectors cannot be placed on the outline
+    /// at all, or race control named a sector the circuit's table does not have.
+    private func unmappedSectorsNote(_ flags: FlagStatus, _ sectors: SectorRuns?) -> String? {
+        guard !flags.sectors.isEmpty else { return nil }
+        guard let sectors else { return "Sector positions are not available for this circuit" }
+        let missing = sectors.unmapped(flags.sectors)
+        guard !missing.isEmpty else { return nil }
+        return "Sector \(missing.map(String.init).joined(separator: ", ")) position not available"
+    }
+
+    private func sectorsUnknownNote(_ text: String) -> some View {
+        Text(text)
             .font(RacingStyle.Typography.caption).dynamicTypeSize(...DynamicTypeSize.xLarge)
             .foregroundStyle(RacingStyle.textSecondary)
             .padding(.horizontal, RacingStyle.Space.m).padding(.vertical, RacingStyle.Space.xs)

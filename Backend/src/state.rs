@@ -1,4 +1,4 @@
-use crate::flags::{flag_status, FlagStatus};
+use crate::flags::{affects_flags, flag_status, FlagStatus};
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -238,7 +238,8 @@ impl TimingState {
         if topic == "race_control" && bucket.len() > RACE_CONTROL_LIMIT {
             if let Some(oldest) = bucket
                 .iter()
-                .min_by_key(|(_, r)| event_date(r))
+                // Messages that cannot change a flag go first, so a long-running flag is not forgotten.
+                .min_by_key(|(_, r)| (topic == "race_control" && affects_flags(r), event_date(r)))
                 .map(|(k, _)| k.clone())
             {
                 bucket.remove(&oldest);
