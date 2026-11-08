@@ -152,6 +152,7 @@ fn locations_are_timestamped_ordered_validated_and_session_scoped() {
         300.0
     );
     state.track = Some(formula_live_backend::state::TrackLayout {
+        rotation_degrees: None,
         source: "test".into(),
         points: vec![],
     });

@@ -312,17 +312,17 @@ extension TimingSnapshot {
 extension TrackLayout {
     /// Width over height of the circuit's bounding box, so the map can take the circuit's own shape.
     public var aspectRatio: Double? {
-        guard points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
-              let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
-              let minY = points.map(\.y).min(), let maxY = points.map(\.y).max(),
+        guard orientedPoints.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              let minX = orientedPoints.map(\.x).min(), let maxX = orientedPoints.map(\.x).max(),
+              let minY = orientedPoints.map(\.y).min(), let maxY = orientedPoints.map(\.y).max(),
               maxX > minX, maxY > minY else { return nil }
         return (maxX - minX) / (maxY - minY)
     }
 }
 
-/// Keeps overlapping driver markers legible. Markers keep their place unless one would sit
-/// closer than `minDistance` to a marker already placed; then it moves to the nearest free
-/// spot on an expanding ring. Deterministic: the same input order always gives the same output.
+/// Keeps overlapping driver markers legible: a marker that would crowd one already placed
+/// slides away from it, so nearby cars stay apart without jumping. The same input order always
+/// gives the same layout.
 public enum MarkerSpread {
     public static func separated(_ points: [TrackPoint], minDistance: Double, bounds: MarkerLabelPlacement.Rect? = nil) -> [TrackPoint] {
         var placed: [TrackPoint] = []
@@ -331,9 +331,25 @@ public enum MarkerSpread {
                 placed.append(point)
                 continue
             }
-            placed.append(freeSpot(near: point, among: placed, minDistance: minDistance, bounds: bounds) ?? point)
+            placed.append(slidApart(point, among: placed, minDistance: minDistance, bounds: bounds)
+                          ?? freeSpot(near: point, among: placed, minDistance: minDistance, bounds: bounds) ?? point)
         }
         return placed
+    }
+
+    /// The point on the line from the nearest placed marker through `point`, exactly `minDistance` from that
+    /// marker, when nothing else occupies it. Coincident points slide in a fixed direction.
+    private static func slidApart(_ point: TrackPoint, among placed: [TrackPoint], minDistance: Double,
+                                  bounds: MarkerLabelPlacement.Rect?) -> TrackPoint? {
+        guard let nearest = placed.min(by: { hypot($0.x - point.x, $0.y - point.y) < hypot($1.x - point.x, $1.y - point.y) })
+        else { return nil }
+        let dx = point.x - nearest.x, dy = point.y - nearest.y
+        let length = hypot(dx, dy)
+        let (ux, uy) = length > 1e-9 ? (dx / length, dy / length) : (1.0, 0.0)
+        let candidate = TrackPoint(x: nearest.x + ux * minDistance, y: nearest.y + uy * minDistance)
+        if let bounds, candidate.x < bounds.x || candidate.x > bounds.maxX
+            || candidate.y < bounds.y || candidate.y > bounds.maxY { return nil }
+        return isFree(candidate, among: placed, minDistance: minDistance) ? candidate : nil
     }
 
     private static func isFree(_ point: TrackPoint, among placed: [TrackPoint], minDistance: Double) -> Bool {
@@ -371,5 +387,90 @@ extension FeedStatus {
         case .offline: "Reconnecting…"
         case .live, .connecting: nil
         }
+    }
+
+    /// Like `timingDetail`, but an offline feed that never delivered timing has no "last timing" to promise.
+    public func timingDetail(hasSnapshot: Bool) -> String? {
+        kind == .offline && !hasSnapshot ? "No timing received" : timingDetail
+    }
+}
+
+/// The per-frame placement of driver markers, kept free of SwiftUI so it can be tested and run
+/// inside a drawing closure without touching the view hierarchy.
+public enum MarkerLayout {
+    /// Where each located driver's marker is drawn at `now`: the eased position while the location is
+    /// fresh and the feed is connected (the received position otherwise), projected onto the map and then
+    /// nudged apart in stable car-number order when markers would overlap.
+    public static func spots(drivers: [TimingDriver], motions: [Int: DriverMotion], projection: TrackProjection,
+                             now: Date, connected: Bool, animated: Bool,
+                             markerSize: Double, width: Double, height: Double) -> [Int: TrackPoint] {
+        let located = drivers.sorted { $0.number < $1.number }.compactMap { driver -> (Int, TrackPoint)? in
+            guard let location = driver.location else { return nil }
+            let rendered = connected && !location.isStale(at: now)
+                ? motions[driver.number]?.point(at: now, animated: animated) : nil
+            guard let point = projection.project(x: rendered?.x ?? location.x, y: rendered?.y ?? location.y) else { return nil }
+            return (driver.number, point)
+        }
+        let radius = markerSize / 2
+        let bounds = MarkerLabelPlacement.Rect(x: radius, y: radius, width: max(0, width - 2 * radius),
+                                               height: max(0, height - 2 * radius))
+        let spread = MarkerSpread.separated(located.map(\.1), minDistance: markerSize * 0.95, bounds: bounds)
+        return Dictionary(zip(located.map(\.0), spread), uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The driver whose marker a tap at `point` lands on: the nearest marker centre within `radius`.
+    /// Ties go to the lower car number, like the drawing order.
+    public static func driver(at point: TrackPoint, in spots: [Int: TrackPoint], radius: Double) -> Int? {
+        spots.filter { hypot($0.value.x - point.x, $0.value.y - point.y) <= radius }
+            .min { lhs, rhs in
+                let l = hypot(lhs.value.x - point.x, lhs.value.y - point.y)
+                let r = hypot(rhs.value.x - point.x, rhs.value.y - point.y)
+                return l == r ? lhs.key < rhs.key : l < r
+            }?.key
+    }
+}
+
+/// When drawing every frame is worthwhile: while the newest received position is still easing (at most one
+/// second) plus a margin for late feed updates. Judged from the newest position's arrival rather than from a
+/// per-position timer, so a stale timer cannot switch drawing off just after a newer position has arrived.
+public enum MotionActivity {
+    public static let window: TimeInterval = 1.25
+
+    public static func isActive(lastReceived: Date, now: Date) -> Bool {
+        now.timeIntervalSince(lastReceived) < window
+    }
+}
+
+/// Rendering only: ease between received coordinates over one feed interval.
+/// Never extrapolates; timestamps on DriverLocation remain the source of freshness.
+public struct DriverMotion: Sendable {
+    private var from: TrackPoint?
+    private var target: DriverLocation?
+    private var started = Date.distantPast
+    private var duration: TimeInterval = 0
+
+    public init() {}
+
+    public mutating func receive(_ location: DriverLocation, at now: Date, animated: Bool = true) {
+        guard let timestamp = location.timestamp,
+              location.x.isFinite, location.y.isFinite else { return }
+        if location == target { return }
+        if let old = target?.timestamp, timestamp < old { return }
+        let previous = point(at: now)
+        let gap = target?.timestamp.map { timestamp.timeIntervalSince($0) }
+        from = previous
+        duration = animated && !location.isStale(at: now) && target?.isStale(at: now) == false && previous != nil
+            && gap.map { $0 > 0 && $0 <= 3 } == true ? min(gap ?? 1, 1) : 0
+        target = location
+        started = now
+    }
+
+    public func point(at now: Date, animated: Bool = true) -> TrackPoint? {
+        guard let target else { return nil }
+        let end = TrackPoint(x: target.x, y: target.y)
+        guard animated, !target.isStale(at: now), let from, duration > 0 else { return end }
+        let fraction = min(max(now.timeIntervalSince(started) / duration, 0), 1)
+        return TrackPoint(x: from.x + (end.x - from.x) * fraction,
+                          y: from.y + (end.y - from.y) * fraction)
     }
 }

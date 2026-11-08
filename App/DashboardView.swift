@@ -47,7 +47,7 @@ struct DashboardView: View {
                 .font(RacingStyle.Typography.display).racingHeading()
                 .accessibilityAddTraits(.isHeader)
             sessionName
-            if let detail = feed.timingDetail {
+            if let detail = feed.timingDetail(hasSnapshot: store.snapshot != nil) {
                 Text(detail).font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
             }
         }

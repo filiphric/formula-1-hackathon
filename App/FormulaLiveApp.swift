@@ -2,6 +2,12 @@ import SwiftUI
 
 @main
 struct FormulaLiveApp: App {
+    init() {
+        // `-seedServerEndpoint ws://host:port/live` saves a one-time address (see Scripts/install-iphone.sh).
+        ServerEndpointSeed.apply(UserDefaults.standard.string(forKey: ServerEndpointSeed.launchKey),
+                                 to: .standard)
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -16,11 +22,14 @@ struct FormulaLiveApp: App {
 private struct RootView: View {
     @AppStorage("serverEndpoint") private var endpoint = "ws://localhost:8787/live"
     @State private var store = TimingStore()
-    @State private var activeEndpoint = ""
     @State private var showingSettings = false
     /// `-initialTab Schedule` on the command line opens that tab first; otherwise Live timing.
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var tab = AppSection(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .live
+
+    @State private var connection = ServerConnection(endpoint: "")
+    /// The saved address is read once at launch. After that an empty address is a real choice and gets validated, not skipped.
+    @State private var seeded = false
 
     var body: some View {
         // One clock drives the app bar's pill and the session hero, so they can never disagree.
@@ -28,23 +37,27 @@ private struct RootView: View {
             let feed = FeedStatus.resolve(snapshot: store.snapshot, connected: store.connected,
                                           hasError: store.error != nil, now: context.date)
             VStack(spacing: 0) {
-                AppBar(feed: feed, tab: $tab, showsTabs: tabsInBar, showSettings: { showingSettings = true })
+                AppBar(feed: feed, tab: $tab, showsTabs: tabsInBar, showSettings: { connection.beginEditing(); showingSettings = true })
                 content(feed: feed)
             }
         }
         .background(RacingStyle.background.ignoresSafeArea())
         .tint(RacingStyle.accentText)
-        .sheet(isPresented: $showingSettings) { ConnectionSheet(endpoint: $endpoint) { connect() } }
-        .task { activeEndpoint = endpoint }
-        .task(id: activeEndpoint) {
-            guard !activeEndpoint.isEmpty else { return }
-            await store.run(endpoint: activeEndpoint)
+        .sheet(isPresented: $showingSettings) {
+            ConnectionSheet(endpoint: $connection.draftEndpoint) {
+                connection.connect()
+                showingSettings = false
+            }
         }
-    }
-
-    private func connect() {
-        activeEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-        showingSettings = false
+        .task {
+            connection = ServerConnection(endpoint: endpoint)
+            seeded = true
+        }
+        .task(id: "\(seeded)|\(connection.activeEndpoint)") {
+            guard seeded else { return }
+            await store.run(endpoint: connection.activeEndpoint)
+        }
+        .onChange(of: connection.activeEndpoint) { _, value in endpoint = value }
     }
 
     /// Mac and iPad put the tab control in the app bar, so the window has one bar of chrome, not two.
@@ -58,7 +71,7 @@ private struct RootView: View {
     }
 
     @ViewBuilder private func content(feed: FeedStatus) -> some View {
-        let scheduleEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scheduleEndpoint = connection.activeEndpoint
         if tabsInBar {
             ZStack {
                 DashboardView(store: store, feed: feed)
@@ -102,7 +115,11 @@ private struct AppBar: View {
                     .frame(width: 64, height: 16)
                 Text("Unofficial")
                     .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
+            // Logo (16) + gap (4) + caption (about 18 at the bar's xxxLarge cap) is 38pt. This 40pt block fits that and
+            // stays under the bar's 48pt minimum, so the disclosure never changes the bar height or the tabs' alignment.
+            .frame(width: 64, height: 40)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Unofficial Formula 1 companion")
             .help("Unofficial Formula 1 companion · Powered by OpenF1")

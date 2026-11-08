@@ -15,6 +15,8 @@ target.build_configurations.each do |config|
   config.build_settings.merge!({
     'PRODUCT_BUNDLE_IDENTIFIER' => 'dev.formulalive.app',
     'PRODUCT_NAME' => 'FormulaLive',
+    'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
+    'ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME' => 'AccentColor',
     'MARKETING_VERSION' => '0.1.0',
     'CURRENT_PROJECT_VERSION' => '1',
     'SWIFT_VERSION' => '6.0',

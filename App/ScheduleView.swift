@@ -3,14 +3,13 @@ import SwiftUI
 struct ScheduleView: View {
     let endpoint: String
     @State private var store = ScheduleStore()
-    @State private var season = Calendar.current.component(.year, from: .now)
+    @State private var season = RaceSchedule.currentSeason()
     @State private var filter = ScheduleFilter.all
     /// The season the filter was last defaulted for, so a refresh keeps the filter the user picked.
     @State private var defaultedFor = ""
     @State private var refresh = 0
     @State private var showingDetails = false
     @Environment(\.dynamicTypeSize) private var typeSize
-    private let currentYear = Calendar.current.component(.year, from: .now)
     private var timeZoneName: String { TimeZone.autoupdatingCurrent.identifier }
 
     var body: some View {
@@ -66,7 +65,11 @@ struct ScheduleView: View {
     private func listContent(_ proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
             if store.loading { ProgressView().accessibilityLabel("Loading season").frame(maxWidth: .infinity).padding(RacingStyle.Space.xl) }
-            if let error = store.error {
+            if let error = store.error, store.schedule != nil {
+                Label("Refresh failed · Showing saved schedule. \(error)", systemImage: "wifi.exclamationmark")
+                    .font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
+            }
+            if let error = store.error, store.schedule == nil {
                 ContentUnavailableView {
                     Label("Schedule unavailable", systemImage: "wifi.exclamationmark")
                 } description: { Text(error) } actions: {
@@ -95,7 +98,7 @@ struct ScheduleView: View {
             Image(systemName: "calendar")
                 .accessibilityLabel("Calendar").accessibilityAddTraits(.isHeader)
             Picker("Season", selection: $season) {
-                ForEach(Array((2023...max(2023, currentYear + 1)).reversed()), id: \.self) { year in
+                ForEach(RaceSchedule.availableSeasons(), id: \.self) { year in
                     Text(String(year)).tag(year)
                 }
             }.labelsHidden().fixedSize()
@@ -151,7 +154,7 @@ struct ScheduleView: View {
             let next = schedule.nextRace(at: now)?.round
             let races = schedule.races(matching: filter, at: now)
             VStack(alignment: .leading, spacing: RacingStyle.Space.m) {
-                if schedule.isStale(at: now) && schedule.mode != "demo" {
+                if store.calendarIsStale() && schedule.mode != "demo" {
                     Label("Saved schedule · May be out of date", systemImage: "clock.badge.exclamationmark")
                         .font(RacingStyle.Typography.caption).foregroundStyle(Color(RacingPalette.statusStale))
                 }
