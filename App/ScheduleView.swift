@@ -246,7 +246,8 @@ private struct WeekendCard: View {
             }
         }
         // Results are fetched the first time a finished weekend is opened, not for the whole season up front.
-        .task(id: expanded && isPast) {
+        // The generation also restarts it after Refresh, which discards what was loaded.
+        .task(id: "\(expanded && isPast)|\(results.generation)") {
             guard expanded && isPast else { return }
             await results.load(round: race.round, endpoint: endpoint, season: season)
         }
@@ -444,7 +445,15 @@ private struct ResultsSection: View {
 
     @ViewBuilder private func loaded(_ results: RaceResults) -> some View {
         if results.entries.isEmpty {
-            Text("Results not published yet").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+            HStack {
+                Text("Results not published yet").font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                Spacer()
+                Button(action: retry) {
+                    Image(systemName: "arrow.clockwise").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).foregroundStyle(RacingStyle.textSecondary)
+                .accessibilityLabel("Check for results again")
+            }
         } else {
             VStack(spacing: RacingStyle.Space.m) {
                 ForEach(results.entries) { ResultRow(entry: $0) }
