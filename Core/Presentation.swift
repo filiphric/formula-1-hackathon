@@ -384,14 +384,9 @@ extension FeedStatus {
     public var timingDetail: String? {
         switch kind {
         case .stale: ageText.map { "Timing \($0) old" } ?? "Timing age unknown"
-        case .offline: "Reconnecting…"
+        case .offline: hasSnapshot ? "Reconnecting…" : "No timing received"
         case .live, .connecting: nil
         }
-    }
-
-    /// Like `timingDetail`, but an offline feed that never delivered timing has no "last timing" to promise.
-    public func timingDetail(hasSnapshot: Bool) -> String? {
-        kind == .offline && !hasSnapshot ? "No timing received" : timingDetail
     }
 }
 

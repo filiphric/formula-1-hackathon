@@ -30,9 +30,8 @@ import Testing
 @Test func offlineFeedWithoutAnyTimingDoesNotPromiseLastTiming() {
     let now = TrackLayout.parseDate("2026-11-07T14:00:00Z")!
     let never = FeedStatus.resolve(snapshot: nil, connected: false, hasError: true, now: now)
-    #expect(never.timingDetail(hasSnapshot: false) == "No timing received")
+    #expect(never.timingDetail == "No timing received")
     let dropped = FeedStatus.resolve(snapshot: TimingSnapshot(mode: "live", upstream: "connected", updatedAt: "2026-11-07T13:59:00Z",
         session: nil, drivers: [], messages: [], track: nil), connected: false, hasError: false, now: now)
-    #expect(dropped.timingDetail(hasSnapshot: true) == "Reconnecting…")
-    #expect(never.timingDetail(hasSnapshot: true) == "Reconnecting…")
+    #expect(dropped.timingDetail == "Reconnecting…")
 }
