@@ -414,3 +414,89 @@ fn a_whole_qualifying_session_of_radio_is_kept() {
     }
     assert_eq!(state.snapshot().radios.len(), 33);
 }
+
+fn at(time: &str) -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::parse_from_rfc3339(time).unwrap().into()
+}
+
+fn in_pit(state: &TimingState, time: &str) -> bool {
+    state.snapshot_at(at(time)).drivers[0].in_pit
+}
+
+#[test]
+fn a_car_is_in_the_pits_from_entry_for_the_lane_duration() {
+    let mut state = state();
+    assert!(!in_pit(&state, "2026-09-01T12:30:00Z"), "no stop recorded");
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:30:00Z","lap_number":20,"lane_duration":22.4}),
+    );
+    assert!(!in_pit(&state, "2026-09-01T12:29:50Z"), "not entered yet");
+    assert!(in_pit(&state, "2026-09-01T12:30:00Z"));
+    assert!(in_pit(&state, "2026-09-01T12:30:25Z"), "within duration plus grace");
+    assert!(!in_pit(&state, "2026-09-01T12:30:28Z"), "stop is over");
+}
+
+#[test]
+fn a_stop_without_a_duration_is_brief_and_the_deprecated_field_still_works() {
+    let mut state = state();
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:30:00Z","lap_number":20}),
+    );
+    assert!(in_pit(&state, "2026-09-01T12:30:40Z"));
+    assert!(!in_pit(&state, "2026-09-01T12:30:46Z"), "never stays pitting for ever");
+    // The duration arrives later and corrects the same stop; the old name is read too.
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:30:00Z","lap_number":20,"pit_duration":10.0}),
+    );
+    assert!(!in_pit(&state, "2026-09-01T12:30:20Z"));
+    // Nonsense durations fall back to the brief default.
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:40:00Z","lap_number":30,"lane_duration":-3}),
+    );
+    assert!(in_pit(&state, "2026-09-01T12:40:10Z"));
+}
+
+#[test]
+fn a_pit_out_lap_ends_the_stop_and_an_earlier_stop_never_replaces_a_newer_one() {
+    let mut state = state();
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:30:00Z","lap_number":20}),
+    );
+    // The lap that began before the entry is not an exit.
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":20,"date_start":"2026-09-01T12:29:00Z","is_pit_out_lap":true}),
+    );
+    assert!(in_pit(&state, "2026-09-01T12:30:10Z"));
+    state.apply(
+        "laps",
+        json!({"session_key":42,"driver_number":4,"lap_number":21,"date_start":"2026-09-01T12:30:20Z","is_pit_out_lap":true}),
+    );
+    assert!(!in_pit(&state, "2026-09-01T12:30:25Z"), "left the lane");
+
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T13:00:00Z","lap_number":40}),
+    );
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:30:00Z","lap_number":20}),
+    );
+    assert!(in_pit(&state, "2026-09-01T13:00:10Z"), "late record of stop 1 is ignored");
+}
+
+#[test]
+fn pit_state_is_on_the_wire_as_in_pit() {
+    let mut state = state();
+    state.apply(
+        "pit",
+        json!({"session_key":42,"driver_number":4,"date":"2026-09-01T12:30:00Z","lap_number":20,"lane_duration":20}),
+    );
+    let wire = serde_json::to_value(state.snapshot_at(at("2026-09-01T12:30:05Z"))).unwrap();
+    assert_eq!(wire["drivers"][0]["inPit"], json!(true));
+}

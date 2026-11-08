@@ -34,7 +34,7 @@ private let surfaces = [RacingPalette.background, RacingPalette.surface, RacingP
 }
 
 @Test func statusLabelsAreReadableOnTheirFills() {
-    for fill in [RacingPalette.statusLive, RacingPalette.statusDemo, RacingPalette.statusStale, RacingPalette.statusOffline] {
+    for fill in [RacingPalette.statusLive, RacingPalette.statusDemo, RacingPalette.statusStale, RacingPalette.statusOffline, RacingPalette.pitLane] {
         #expect(RacingPalette.onStatus.contrastRatio(with: fill) >= 4.5)
     }
 }

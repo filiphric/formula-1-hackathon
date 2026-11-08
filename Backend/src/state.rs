@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-pub const TOPICS: [&str; 8] = [
+pub const TOPICS: [&str; 9] = [
     "drivers",
     "position",
     "intervals",
@@ -12,8 +12,16 @@ pub const TOPICS: [&str; 8] = [
     "stints",
     "race_control",
     "team_radio",
+    "pit",
     "location",
 ];
+
+/// How long a car counts as in the pits when the stop has no known duration, and the slack added to a
+/// known one so a feed running a few seconds behind does not drop the chip early.
+const PIT_UNKNOWN_SECONDS: f64 = 45.0;
+const PIT_GRACE_SECONDS: f64 = 5.0;
+/// Pit lane durations beyond this are bad data (a car stuck in the lane would stay "pitting" for ever).
+const PIT_MAX_SECONDS: f64 = 300.0;
 
 /// Race-control messages shown to the app, newest first.
 const MESSAGE_LIMIT: usize = 100;
@@ -80,6 +88,9 @@ pub struct Driver {
     /// The driver's fastest completed lap of the session, in seconds.
     pub best_lap: Option<f64>,
     pub compound: Option<String>,
+    /// The car is in the pit lane right now.
+    #[serde(default)]
+    pub in_pit: bool,
     #[serde(default)]
     pub location: Option<DriverLocation>,
 }
@@ -254,6 +265,8 @@ impl TimingState {
             let sequence = |r: &Value| match topic {
                 "laps" => r["lap_number"].as_i64().unwrap_or(0),
                 "stints" => r["stint_number"].as_i64().unwrap_or(0),
+                // A driver stops several times; a late record of an earlier stop must not replace the newest.
+                "pit" => r["lap_number"].as_i64().unwrap_or(0),
                 _ => 0,
             };
             if sequence(&record) < sequence(old) {
@@ -374,7 +387,41 @@ impl TimingState {
         flag_status(ordered.into_iter().map(|(_, _, record)| record))
     }
 
+    /// Whether the driver is in the pit lane at `now`. A stop is recorded from the moment the car enters the
+    /// lane (`date`) and lasts `lane_duration`; when the duration is not known yet it is assumed brief. The
+    /// stop ends early once the driver starts a pit-out lap that began after the entry.
+    fn in_pit(&self, key: &str, now: DateTime<Utc>) -> bool {
+        let pit = self.record("pit", key);
+        let Some(entered) = event_date(pit) else {
+            return false;
+        };
+        // A little clock skew is tolerated, but a stop that has not happened yet is not in progress.
+        if entered - now > chrono::Duration::seconds(2) {
+            return false;
+        }
+        let duration = ["lane_duration", "pit_duration"]
+            .iter()
+            .find_map(|field| pit[*field].as_f64())
+            .filter(|d| d.is_finite() && *d > 0.0 && *d <= PIT_MAX_SECONDS)
+            .map_or(PIT_UNKNOWN_SECONDS, |d| d + PIT_GRACE_SECONDS);
+        if (now - entered).num_milliseconds() as f64 / 1000.0 >= duration {
+            return false;
+        }
+        let laps = self.record("laps", key);
+        let left = laps["is_pit_out_lap"].as_bool() == Some(true)
+            && laps["date_start"]
+                .as_str()
+                .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                .is_some_and(|start| start.with_timezone(&Utc) > entered);
+        !left
+    }
+
     pub fn snapshot(&self) -> Snapshot {
+        self.snapshot_at(Utc::now())
+    }
+
+    /// The snapshot as it reads at `now`, which only matters for what depends on the clock (pit stops).
+    pub fn snapshot_at(&self, now: DateTime<Utc>) -> Snapshot {
         let mut drivers: Vec<Driver> = self
             .records
             .get("drivers")
@@ -399,6 +446,7 @@ impl TimingState {
                     lap_time: self.record("laps", key)["lap_duration"].as_f64(),
                     best_lap: self.best_lap(key),
                     location: location(self.record("location", key)),
+                    in_pit: self.in_pit(key, now),
                     compound: self.record("stints", key)["compound"]
                         .as_str()
                         .map(str::to_string),
@@ -465,8 +513,11 @@ impl TimingState {
             flags: self.flags(),
         };
         if self.mode == "demo" {
-            let now = Utc::now();
             let phase = now.timestamp_millis() as f64 / 60000.0;
+            // Sample pit stop: the last car is in the lane for the first 20 seconds of every minute.
+            if let Some(driver) = snapshot.drivers.last_mut() {
+                driver.in_pit = now.timestamp().rem_euclid(60) < 20;
+            }
             for (i, driver) in snapshot.drivers.iter_mut().enumerate() {
                 let point = demo_point((phase - i as f64 * 0.09).rem_euclid(1.0));
                 driver.location = Some(DriverLocation {

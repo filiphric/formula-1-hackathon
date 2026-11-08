@@ -190,7 +190,8 @@ extension TimingDriver {
     public func accessibilitySummary(showingGap: Bool, metric: TimingMetric) -> String {
         let place = position.map { "Position \($0)" } ?? "Position unavailable"
         let lap = formattedLap == "—" ? "last lap unavailable" : "last lap \(formattedLap)"
-        let parts = [place, name, team] + (showingGap ? [spokenTiming(metric)] : []) + [lap, TyreCompound(compound).label]
+        let pitting = isInPit ? ["in the pits"] : []
+        let parts = [place, name, team] + pitting + (showingGap ? [spokenTiming(metric)] : []) + [lap, TyreCompound(compound).label]
         return parts.joined(separator: ", ")
     }
 }

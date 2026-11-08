@@ -8,7 +8,8 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
 @Test func countdownShowsDaysAndHoursForFarAwayRaces() {
     // 3 days + 4 hours + 59 minutes: units are truncated, so minutes never appear next to days.
-    let target = now.addingTimeInterval(3 * 86_400 + 4 * 3_600 + 59 * 60)
+    let offset: TimeInterval = 277_140
+    let target = now.addingTimeInterval(offset)
     #expect(Countdown.text(until: target, now: now) == "in 3d 4h")
     #expect(Countdown.text(until: now.addingTimeInterval(2 * 86_400), now: now) == "in 2d")
 }

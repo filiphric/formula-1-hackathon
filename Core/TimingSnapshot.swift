@@ -70,6 +70,10 @@ public struct TimingDriver: Codable, Identifiable, Sendable {
     public var interval: String? = nil
     /// The driver's fastest completed lap of the session, in seconds. Absent from older backends.
     public var bestLap: Double? = nil
+    /// The car is in the pit lane right now. Absent from older backends, which reads as on track.
+    public var inPit: Bool? = nil
+
+    public var isInPit: Bool { inPit == true }
 
     public var formattedLap: String { Self.format(lap: lapTime) }
     public var formattedBestLap: String { Self.format(lap: bestLap) }

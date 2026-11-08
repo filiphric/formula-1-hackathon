@@ -53,7 +53,7 @@ struct TimingTower: View {
                     HStack(spacing: RacingStyle.Space.m) {
                         if showsGap { timing(driver) }
                         Spacer(minLength: RacingStyle.Space.s)
-                        Text(driver.formattedLap).font(RacingStyle.Typography.data).foregroundStyle(RacingStyle.textSecondary).lineLimit(1)
+                        lastLap(driver, hasTimingColumn: showsGap)
                     }
                 }
                 .padding(.vertical, RacingStyle.Space.m)
@@ -121,10 +121,7 @@ struct TimingTower: View {
                     .frame(minWidth: 0, idealWidth: layout.showsFullTeamName ? nil : 48, maxWidth: .infinity, alignment: .leading)
             }
             if columns.contains(.gap) { timing(driver) }
-            if columns.contains(.lastLap) {
-                Text(driver.formattedLap).font(RacingStyle.Typography.data).foregroundStyle(RacingStyle.textSecondary)
-                    .lineLimit(1).fixedSize()
-            }
+            if columns.contains(.lastLap) { lastLap(driver, hasTimingColumn: columns.contains(.gap)) }
             TyreBadge(compound: TyreCompound(driver.compound))
         }
         .accessibilityElement(children: .ignore)
@@ -138,8 +135,21 @@ struct TimingTower: View {
         if showsGap { Button("Show \(metric.next.spokenName)", action: cycleMetric) }
     }
 
+    /// The last lap time. A car in the pits shows the PIT chip in the timing column; without one (practice,
+    /// qualifying) the chip takes the last lap's place instead, so it is never hidden.
+    @ViewBuilder private func lastLap(_ driver: TimingDriver, hasTimingColumn: Bool) -> some View {
+        if driver.isInPit && !hasTimingColumn {
+            PitChip()
+        } else {
+            Text(driver.formattedLap).font(RacingStyle.Typography.data).foregroundStyle(RacingStyle.textSecondary)
+                .lineLimit(1).fixedSize()
+        }
+    }
+
     @ViewBuilder private func timing(_ driver: TimingDriver) -> some View {
-        if driver.isLeader && metric.marksLeader {
+        if driver.isInPit {
+            PitChip()
+        } else if driver.isLeader && metric.marksLeader {
             // A filled brand-red chip, so the leader is a shape and not only a word.
             Image(systemName: "crown.fill").font(RacingStyle.Typography.label).accessibilityLabel("Leader").help("Leader")
                 .lineLimit(1).fixedSize()

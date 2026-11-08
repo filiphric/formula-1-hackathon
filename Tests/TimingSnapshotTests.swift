@@ -14,3 +14,29 @@ import Testing
     let driver = try JSONDecoder().decode(TimingDriver.self, from:data)
     #expect(driver.formattedLap == "1:00.000")
 }
+
+// MARK: Cars in the pits
+
+private func pitDriver(inPit: Bool?) -> TimingDriver {
+    TimingDriver(number: 4, name: "Lando Norris", acronym: "NOR", team: "McLaren", color: "FF8000",
+                 position: 2, gap: nil, lap: 3, lapTime: 91.312, compound: "SOFT", location: nil, inPit: inPit)
+}
+
+@Test func inPitDecodesFromTheBackendAndIsAbsentFromOlderOnes() throws {
+    let base = #"{"number":4,"name":"Lando Norris","acronym":"NOR","team":"McLaren","color":"FF8000","position":2"#
+    let pitting = try JSONDecoder().decode(TimingDriver.self, from: Data((base + #","inPit":true}"#).utf8))
+    #expect(pitting.isInPit)
+    let onTrack = try JSONDecoder().decode(TimingDriver.self, from: Data((base + #","inPit":false}"#).utf8))
+    #expect(!onTrack.isInPit)
+    let older = try JSONDecoder().decode(TimingDriver.self, from: Data((base + "}").utf8))
+    #expect(!older.isInPit)
+}
+
+@Test func aCarInThePitsIsSpokenAsInThePitsAndOnlyThen() {
+    #expect(pitDriver(inPit: true).accessibilitySummary(showingGap: false)
+            == "Position 2, Lando Norris, McLaren, in the pits, last lap 1:31.312, Soft tyre")
+    #expect(pitDriver(inPit: false).accessibilitySummary(showingGap: false)
+            == "Position 2, Lando Norris, McLaren, last lap 1:31.312, Soft tyre")
+    #expect(pitDriver(inPit: nil).accessibilitySummary(showingGap: false)
+            == "Position 2, Lando Norris, McLaren, last lap 1:31.312, Soft tyre")
+}

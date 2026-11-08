@@ -169,6 +169,18 @@ extension View {
     func racingLabel() -> some View { font(RacingStyle.Typography.label).textCase(.uppercase).tracking(1) }
 }
 
+/// Marks a car that is in the pit lane right now. A filled chip with a word, never colour alone.
+struct PitChip: View {
+    var body: some View {
+        Text("PIT").racingLabel()
+            .lineLimit(1).fixedSize()
+            .foregroundStyle(Color(RacingPalette.onStatus))
+            .padding(.horizontal, RacingStyle.Space.s).padding(.vertical, RacingStyle.Space.xs)
+            .background(Color(RacingPalette.pitLane), in: Capsule())
+            .accessibilityLabel("In the pits")
+    }
+}
+
 struct TyreBadge: View {
     let compound: TyreCompound
     @ScaledMetric(relativeTo: .caption) private var diameter = 26

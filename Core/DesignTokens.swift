@@ -51,6 +51,8 @@ public enum RacingPalette {
     public static let statusLive = SRGBColor(hex: 0x35D07F)
     public static let statusDemo = SRGBColor(hex: 0xFFC53D)
     public static let statusStale = SRGBColor(hex: 0xFF8A3D)
+    /// The PIT chip on a car that is in the pit lane; dark ink on it, like the status chips.
+    public static let pitLane = SRGBColor(hex: 0x3DD6F5)
     public static let statusOffline = SRGBColor(hex: 0x8E8EA0)
     public static let onStatus = SRGBColor(hex: 0x0E0E13)
     // Driver markers on the track map: number and ring drawn over any team colour.
