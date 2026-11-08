@@ -14,6 +14,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# The app ignores any other address and keeps its saved one, so refuse it here instead of reporting a good install.
+if [[ -n "$endpoint" ]]; then
+  scheme_and_host="$(printf '%s' "$endpoint" | tr '[:upper:]' '[:lower:]')"
+  if [[ ! "$scheme_and_host" =~ ^wss?://[^/@[:space:]]+ || "$endpoint" =~ [[:space:]] ]]; then
+    echo "--endpoint must be a ws:// or wss:// address such as ws://192.168.1.10:8787/live (got '$endpoint')." >&2
+    exit 64
+  fi
+fi
+
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 bundle_id="dev.formulalive.app"

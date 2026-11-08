@@ -60,21 +60,46 @@ public struct TrackPoint: Codable, Sendable, Equatable {
     }
 }
 
-public struct DriverLocation: Codable, Sendable {
+public struct DriverLocation: Codable, Sendable, Equatable {
     public let x: Double
     public let y: Double
     public let date: String
 
-    public var timestamp: Date? { TrackLayout.parseDate(date) }
+    public let timestamp: Date?
+
+    private enum CodingKeys: String, CodingKey { case x, y, date }
+
+    public init(x: Double, y: Double, date: String) {
+        self.x = x
+        self.y = y
+        self.date = date
+        timestamp = TrackLayout.parseDate(date)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(x: try values.decode(Double.self, forKey: .x),
+                  y: try values.decode(Double.self, forKey: .y),
+                  date: try values.decode(String.self, forKey: .date))
+    }
+
     public func isStale(at now: Date) -> Bool {
         guard let timestamp else { return true }
         return now.timeIntervalSince(timestamp) > 10 || timestamp.timeIntervalSince(now) > 5
     }
 }
 
-public struct TrackLayout: Codable, Sendable {
+public struct TrackLayout: Codable, Sendable, Equatable {
     public let source: String
     public let points: [TrackPoint]
+    /// MultiViewer/FastF1 rotation, counterclockwise in telemetry coordinates.
+    public var rotationDegrees: Double? = nil
+
+    public var orientedPoints: [TrackPoint] { points.map { rotate($0) } }
+
+    private func rotate(_ point: TrackPoint) -> TrackPoint {
+        TrackProjection.rotate(point, degrees: rotationDegrees ?? 0)
+    }
 
     public static func parseDate(_ value: String) -> Date? {
         let formatter = ISO8601DateFormatter()
@@ -83,18 +108,22 @@ public struct TrackLayout: Codable, Sendable {
     }
 
     public func projection(width: Double, height: Double) -> TrackProjection? {
-        TrackProjection(points: points, width: width, height: height)
+        TrackProjection(points: points, width: width, height: height, rotationDegrees: rotationDegrees ?? 0)
     }
 }
 
 public struct TrackProjection: Sendable {
+    private let rotationDegrees: Double
     private let minX: Double
     private let maxY: Double
     private let scale: Double
     private let offsetX: Double
     private let offsetY: Double
 
-    public init?(points: [TrackPoint], width: Double, height: Double) {
+    public init?(points: [TrackPoint], width: Double, height: Double, rotationDegrees: Double = 0) {
+        guard rotationDegrees.isFinite else { return nil }
+        self.rotationDegrees = rotationDegrees
+        let points = points.map { Self.rotate($0, degrees: rotationDegrees) }
         guard points.count >= 2, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
               width.isFinite, height.isFinite, width > 64, height > 64,
               let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
@@ -107,9 +136,16 @@ public struct TrackProjection: Sendable {
         offsetY = (height - (maxY - minY) * scale) / 2
     }
 
+    public static func rotate(_ point: TrackPoint, degrees: Double) -> TrackPoint {
+        let radians = degrees * .pi / 180
+        return TrackPoint(x: point.x * cos(radians) - point.y * sin(radians),
+                          y: point.x * sin(radians) + point.y * cos(radians))
+    }
+
     public func project(x: Double, y: Double) -> TrackPoint? {
         guard x.isFinite, y.isFinite else { return nil }
-        return TrackPoint(x: offsetX + (x - minX) * scale, y: offsetY + (maxY - y) * scale)
+        let point = Self.rotate(TrackPoint(x: x, y: y), degrees: rotationDegrees)
+        return TrackPoint(x: offsetX + (point.x - minX) * scale, y: offsetY + (maxY - point.y) * scale)
     }
 }
 
