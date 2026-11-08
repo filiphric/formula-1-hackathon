@@ -18,6 +18,8 @@ pub struct Schedule {
     pub source: String,
     pub fetched_at: String,
     pub stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<u64>,
     pub races: Vec<Weekend>,
 }
 
@@ -57,6 +59,7 @@ impl CacheEntry {
     fn stale(&self) -> Result<Schedule> {
         let mut saved = self.schedule.clone().context("Calendar unavailable")?;
         saved.stale = true;
+        saved.expires_in = Some(0);
         Ok(saved)
     }
 }
@@ -86,8 +89,11 @@ impl Calendar {
         let mut entry = entry.lock().await;
         if let Some(saved) = &entry.schedule {
             let age = chrono::DateTime::parse_from_rfc3339(&saved.fetched_at)?;
-            if Utc::now().signed_duration_since(age).num_seconds() < 900 {
-                return Ok(saved.clone());
+            let age_seconds = Utc::now().signed_duration_since(age).num_seconds();
+            if (0..900).contains(&age_seconds) {
+                let mut cached = saved.clone();
+                cached.expires_in = Some(900 - age_seconds as u64);
+                return Ok(cached);
             }
         }
         if entry
@@ -175,17 +181,14 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
                 start,
             });
         }
-        sessions.sort_by(|a, b| {
-            a.date
-                .cmp(&b.date)
-                .then_with(|| match (&a.start, &b.start) {
-                    (Some(a), Some(b)) => a.cmp(b),
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    // Stable sort retains the known session sequence when both times are TBC.
-                    (None, None) => std::cmp::Ordering::Equal,
-                })
-        });
+        // Group days in calendar order while preserving the F1 session sequence.
+        // Reorder within a day only when every start time is published.
+        sessions.sort_by(|a, b| a.date.cmp(&b.date));
+        for day in sessions.chunk_by_mut(|a, b| a.date == b.date) {
+            if day.iter().all(|session| session.start.is_some()) {
+                day.sort_by(|a, b| a.start.cmp(&b.start));
+            }
+        }
         races.push(Weekend {
             round: text(&race["round"])?.parse()?,
             name: text(&race["raceName"])?,
@@ -213,6 +216,7 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
         source: "Jolpica F1".into(),
         fetched_at: Utc::now().to_rfc3339(),
         stale: false,
+        expires_in: Some(900),
         races,
     })
 }
@@ -259,6 +263,7 @@ fn demo_schedule(year: i32) -> Schedule {
         source: "Fictional sample calendar".into(),
         fetched_at: Utc::now().to_rfc3339(),
         stale: false,
+        expires_in: Some(900),
         races: vec![
             weekend(1, "Sample Grand Prix", 3, false),
             weekend(2, "Sample Sprint Weekend", 11, true),
@@ -345,6 +350,73 @@ mod tests {
             encoded["races"][1]["sessions"][1]["name"],
             "Sprint qualifying"
         );
+    }
+
+    #[tokio::test]
+    async fn warm_cache_reports_only_its_remaining_lifetime() {
+        let calendar = Calendar {
+            base_url: "http://127.0.0.1:0".into(),
+            ..Calendar::default()
+        };
+        let mut saved = demo_schedule(2026);
+        saved.fetched_at = (Utc::now() - chrono::Duration::seconds(870)).to_rfc3339();
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
+        let response = calendar.load(2026, false).await.unwrap();
+        assert!(!response.stale);
+        assert_eq!(response.expires_in, Some(30));
+    }
+
+    #[tokio::test]
+    async fn future_fetch_time_is_stale_after_a_clock_rollback() {
+        let calendar = Calendar {
+            base_url: "http://127.0.0.1:0".into(),
+            ..Calendar::default()
+        };
+        let mut saved = demo_schedule(2026);
+        saved.fetched_at = (Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
+        assert!(calendar.load(2026, false).await.unwrap().stale);
+    }
+
+    #[test]
+    fn mixed_published_times_preserve_practice_sequence() {
+        let value = json!({"MRData":{"total":"1","RaceTable":{"Races":[{
+            "season":"2026","round":"1","raceName":"Sample Grand Prix",
+            "Circuit":{"circuitName":"Sample","Location":{"country":"Sample"}},
+            "date":"2026-03-15","time":"14:00:00Z",
+            "FirstPractice":{"date":"2026-03-13"},
+            "SecondPractice":{"date":"2026-03-13","time":"16:00:00Z"},
+            "ThirdPractice":{"date":"2026-03-14","time":"12:00:00Z"},
+            "Qualifying":{"date":"2026-03-14","time":"16:00:00Z"}
+        }]}}});
+        let schedule = normalize(2026, &value).unwrap();
+        assert_eq!(
+            schedule.races[0]
+                .sessions
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Practice 1",
+                "Practice 2",
+                "Practice 3",
+                "Qualifying",
+                "Race"
+            ]
+        );
+        assert!(schedule.races[0].sessions[0].start.is_none());
     }
 
     #[test]
