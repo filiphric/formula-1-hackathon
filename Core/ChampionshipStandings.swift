@@ -91,14 +91,18 @@ public struct StandingRow: Identifiable, Sendable, Equatable {
 
 public enum ChampionshipProjection {
     /// What the live session is worth to the championship, or nil when it is not scoring right now.
-    /// Demo sessions always project, since their clock is meaningless; a real one only between its start and end,
-    /// because the official standings include the race only after it is classified.
+    /// Demo sessions always project, since their clock is meaningless; a real one from its start until its end.
+    /// A race that runs past its scheduled end (after a red flag, say) keeps projecting while cars still report
+    /// positions. Once they stop, the projection ends: the official table then takes over, and adding the
+    /// running order on top of it once it includes the race would count the points twice.
     public static func scoringSession(for snapshot: TimingSnapshot, now: Date) -> ChampionshipSession? {
         guard let session = snapshot.session, let kind = ChampionshipSession(sessionName: session.name) else { return nil }
         if snapshot.mode == "demo" { return kind }
         guard let start = TrackLayout.parseDate(session.start), let end = TrackLayout.parseDate(session.end),
-              now >= start, now <= end else { return nil }
-        return kind
+              now >= start else { return nil }
+        if now <= end { return kind }
+        let stillRacing = snapshot.drivers.compactMap(\.location).contains { !$0.isStale(at: now) }
+        return stillRacing ? kind : nil
     }
 
     /// The table in projected order. Drivers match the timing feed by three-letter code. A driver on the

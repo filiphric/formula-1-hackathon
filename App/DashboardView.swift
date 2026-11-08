@@ -4,6 +4,8 @@ struct DashboardView: View {
     let store: TimingStore
     let feed: FeedStatus
     let endpoint: String
+    /// False while another tab is on screen; the dashboard stays alive underneath on wide layouts.
+    let isActive: Bool
     /// The pager's slot (see `DashboardPage.loopSlots`); starts on the real running-order slot.
     @State private var slot: Int? = DashboardPage.order.slot
     @State private var radioPlayer = TeamRadioPlayer()
@@ -31,7 +33,15 @@ struct DashboardView: View {
                 pageSelector(snapshot)
                 pages(snapshot)
                     .onChange(of: newItemKey(snapshot), initial: true) { observeNewItems(snapshot) }
-                    .onChange(of: page) { observeNewItems(snapshot) }
+                    .onChange(of: page) {
+                        // Radio plays only while its page is the one on screen.
+                        if page != .radio { radioPlayer.stop() }
+                        observeNewItems(snapshot)
+                    }
+                    .onChange(of: isActive) {
+                        if !isActive { radioPlayer.stop() }
+                        observeNewItems(snapshot)
+                    }
             } else {
                 ContentUnavailableView(
                     "Your race weekend, live",
@@ -106,8 +116,8 @@ struct DashboardView: View {
             observedSession = sessionKey(snapshot)
             raceControlSeen.reset(); radioSeen.reset()
         }
-        raceControlSeen.observe(newItemIDs(for: .raceControl, snapshot) ?? [], viewing: page == .raceControl)
-        radioSeen.observe(newItemIDs(for: .radio, snapshot) ?? [], viewing: page == .radio)
+        raceControlSeen.observe(newItemIDs(for: .raceControl, snapshot) ?? [], viewing: isActive && page == .raceControl)
+        radioSeen.observe(newItemIDs(for: .radio, snapshot) ?? [], viewing: isActive && page == .radio)
     }
 
     /// One full-width page per slot; swiping (or a trackpad scroll) snaps to the next, and the last

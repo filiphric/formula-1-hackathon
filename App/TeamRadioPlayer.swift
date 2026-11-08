@@ -13,6 +13,7 @@ final class TeamRadioPlayer {
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var statusObservation: NSKeyValueObservation?
+    private var audioSessionActive = false
 
     func toggle(_ radio: TeamRadio) {
         if playingID == radio.id { stop(); return }
@@ -22,7 +23,7 @@ final class TeamRadioPlayer {
         #if os(iOS)
         // Radio is spoken audio the user asked for, so it plays even with the silent switch on.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        audioSessionActive = (try? AVAudioSession.sharedInstance().setActive(true)) != nil
         #endif
         let item = AVPlayerItem(url: url)
         let player = AVPlayer(playerItem: item)
@@ -59,5 +60,12 @@ final class TeamRadioPlayer {
         player = nil
         playingID = nil
         progress = 0
+        #if os(iOS)
+        // Let the user's music or podcast resume once the clip is over.
+        if audioSessionActive {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            audioSessionActive = false
+        }
+        #endif
     }
 }

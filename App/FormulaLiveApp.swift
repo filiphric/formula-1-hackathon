@@ -76,14 +76,14 @@ private struct RootView: View {
         let scheduleEndpoint = connection.activeEndpoint
         if tabsInBar {
             ZStack {
-                DashboardView(store: store, feed: feed, endpoint: scheduleEndpoint)
+                DashboardView(store: store, feed: feed, endpoint: scheduleEndpoint, isActive: tab == .live)
                     .opacity(tab == .live ? 1 : 0).allowsHitTesting(tab == .live).accessibilityHidden(tab != .live)
                 ScheduleView(endpoint: scheduleEndpoint)
                     .opacity(tab == .schedule ? 1 : 0).allowsHitTesting(tab == .schedule).accessibilityHidden(tab != .schedule)
             }
         } else {
             TabView(selection: $tab) {
-                DashboardView(store: store, feed: feed, endpoint: scheduleEndpoint).tag(AppSection.live)
+                DashboardView(store: store, feed: feed, endpoint: scheduleEndpoint, isActive: tab == .live).tag(AppSection.live)
                     .tabItem { Image(systemName: AppSection.live.symbol).accessibilityLabel(AppSection.live.rawValue) }
                 ScheduleView(endpoint: scheduleEndpoint).tag(AppSection.schedule)
                     .tabItem { Image(systemName: AppSection.schedule.symbol).accessibilityLabel(AppSection.schedule.rawValue) }

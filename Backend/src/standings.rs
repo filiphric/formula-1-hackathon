@@ -4,8 +4,13 @@ use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex as StdMutex},
+    time::{Duration, Instant},
+};
 use tokio::sync::Mutex;
+use tracing::warn;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,10 +37,22 @@ pub struct StandingEntry {
     pub wins: u32,
 }
 
+/// What is known about one season. Each season has its own lock, so a slow fetch for one season never
+/// blocks another, while concurrent requests for the same season share a single upstream call.
+#[derive(Default)]
+struct Slot {
+    saved: Option<(Standings, Instant)>,
+    last_failure: Option<Instant>,
+}
+
 pub struct StandingsFeed {
     http: reqwest::Client,
-    cache: Mutex<HashMap<i32, Standings>>,
+    slots: StdMutex<HashMap<i32, Arc<Mutex<Slot>>>>,
     base_url: String,
+    /// How long a fetched table is served without asking the source again.
+    ttl: Duration,
+    /// How long a failed fetch is remembered before asking again, so an outage is not hammered.
+    retry_after: Duration,
 }
 
 impl Default for StandingsFeed {
@@ -45,8 +62,11 @@ impl Default for StandingsFeed {
                 .timeout(Duration::from_secs(15))
                 .build()
                 .expect("standings HTTP client"),
-            cache: Mutex::new(HashMap::new()),
+            slots: StdMutex::new(HashMap::new()),
             base_url: "https://api.jolpi.ca/ergast/f1".into(),
+            // Points change when a race is classified, so a short cache keeps a live weekend current.
+            ttl: Duration::from_secs(300),
+            retry_after: Duration::from_secs(30),
         }
     }
 }
@@ -56,6 +76,15 @@ pub fn valid_season(year: i32) -> bool {
 }
 
 impl StandingsFeed {
+    fn slot(&self, year: i32) -> Arc<Mutex<Slot>> {
+        self.slots
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .entry(year)
+            .or_default()
+            .clone()
+    }
+
     pub async fn load(&self, year: i32, demo: bool) -> Result<Standings> {
         if !valid_season(year) {
             bail!("Unsupported season");
@@ -63,27 +92,42 @@ impl StandingsFeed {
         if demo {
             return Ok(demo_standings(year));
         }
-        let mut cache = self.cache.lock().await;
-        // Points change when a race is classified, so a short cache keeps a live weekend current.
-        if let Some(saved) = cache.get(&year) {
-            let age = chrono::DateTime::parse_from_rfc3339(&saved.fetched_at)?;
-            if Utc::now().signed_duration_since(age).num_seconds() < 300 {
+        let slot = self.slot(year);
+        let mut slot = slot.lock().await;
+        if let Some((saved, at)) = &slot.saved {
+            if at.elapsed() < self.ttl {
                 return Ok(saved.clone());
             }
         }
+        if slot
+            .last_failure
+            .is_some_and(|at| at.elapsed() < self.retry_after)
+        {
+            return Self::fallback(&slot, anyhow::anyhow!("Standings source recently failed"));
+        }
         match self.fetch(year).await {
             Ok(standings) => {
-                cache.insert(year, standings.clone());
+                slot.saved = Some((standings.clone(), Instant::now()));
+                slot.last_failure = None;
                 Ok(standings)
             }
-            Err(error) => match cache.get(&year) {
-                Some(saved) => {
-                    let mut saved = saved.clone();
-                    saved.stale = true;
-                    Ok(saved)
-                }
-                None => Err(error),
-            },
+            Err(error) => {
+                warn!(year, error = %format!("{error:#}"), "Standings refresh failed");
+                slot.last_failure = Some(Instant::now());
+                Self::fallback(&slot, error)
+            }
+        }
+    }
+
+    /// The last fetched table marked stale, or the error when there is none.
+    fn fallback(slot: &Slot, error: anyhow::Error) -> Result<Standings> {
+        match &slot.saved {
+            Some((saved, _)) => {
+                let mut saved = saved.clone();
+                saved.stale = true;
+                Ok(saved)
+            }
+            None => Err(error),
         }
     }
 
@@ -260,16 +304,111 @@ mod tests {
     async fn stale_cache_survives_failure_and_demo_never_calls_upstream() {
         let feed = StandingsFeed {
             base_url: "http://127.0.0.1:0".into(),
+            retry_after: Duration::ZERO,
             ..StandingsFeed::default()
         };
         assert!(feed.load(2025, false).await.is_err());
         let mut saved = demo_standings(2025);
         saved.mode = "standings".into();
         saved.fetched_at = "2020-01-01T00:00:00Z".into();
-        feed.cache.lock().await.insert(2025, saved);
+        feed.slot(2025).lock().await.saved =
+            Some((saved, Instant::now() - Duration::from_secs(3600)));
         let stale = feed.load(2025, false).await.unwrap();
         assert!(stale.stale);
         assert_eq!(feed.load(2025, true).await.unwrap().mode, "demo");
         assert!(feed.load(1900, true).await.is_err());
+    }
+
+    use axum::{extract::Path, http::StatusCode, routing::get, Json, Router};
+    use std::sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+        Arc,
+    };
+
+    struct Feed {
+        base_url: String,
+        requests: Arc<AtomicUsize>,
+        failing: Arc<AtomicBool>,
+    }
+
+    /// A fake Jolpica: 2024 answers after a pause, everything else at once; `failing` makes it return 500.
+    async fn feed() -> Feed {
+        let requests = Arc::new(AtomicUsize::new(0));
+        let failing = Arc::new(AtomicBool::new(false));
+        let (r, f) = (requests.clone(), failing.clone());
+        let app = Router::new().route(
+            "/{year}/driverStandings/",
+            get(move |Path(year): Path<i32>| {
+                let (r, f) = (r.clone(), f.clone());
+                async move {
+                    r.fetch_add(1, SeqCst);
+                    if year == 2024 {
+                        tokio::time::sleep(Duration::from_millis(600)).await;
+                    }
+                    if f.load(SeqCst) {
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    }
+                    Ok(Json(
+                        json!({"MRData":{"total":"1","StandingsTable":{"season":year.to_string(),
+                        "round":"3","StandingsLists":[{"season":year.to_string(),"round":"3",
+                        "DriverStandings":[row("1","AAA","25","1")]}]}}}),
+                    ))
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        Feed {
+            base_url,
+            requests,
+            failing,
+        }
+    }
+
+    fn client(feed: &Feed, retry_after: Duration) -> StandingsFeed {
+        StandingsFeed {
+            base_url: feed.base_url.clone(),
+            retry_after,
+            ..StandingsFeed::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn an_outage_is_not_hammered_but_is_retried_after_the_cooldown() {
+        let feed = feed().await;
+        feed.failing.store(true, SeqCst);
+        let standings = client(&feed, Duration::from_millis(300));
+        assert!(standings.load(2025, false).await.is_err());
+        assert!(standings.load(2025, false).await.is_err());
+        assert!(standings.load(2025, false).await.is_err());
+        assert_eq!(
+            feed.requests.load(SeqCst),
+            1,
+            "failures wait out the cooldown"
+        );
+        feed.failing.store(false, SeqCst);
+        tokio::time::sleep(Duration::from_millis(350)).await;
+        assert_eq!(standings.load(2025, false).await.unwrap().entries.len(), 1);
+        assert_eq!(feed.requests.load(SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn a_slow_season_does_not_block_another() {
+        let feed = feed().await;
+        let standings = client(&feed, Duration::from_secs(30));
+        let slow = standings.load(2024, false);
+        let quick = async {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            let started = Instant::now();
+            standings.load(2025, false).await.unwrap();
+            started.elapsed()
+        };
+        let (slow, quick) = tokio::join!(slow, quick);
+        assert!(slow.is_ok());
+        assert!(
+            quick < Duration::from_millis(300),
+            "2025 waited {quick:?} behind the slow 2024 request"
+        );
     }
 }

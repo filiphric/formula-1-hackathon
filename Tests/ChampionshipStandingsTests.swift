@@ -109,6 +109,21 @@ private let raceTime = TrackLayout.parseDate("2025-12-07T14:00:00Z")!
     #expect(ChampionshipProjection.scoringSession(for: demo, now: raceTime) == .race)
 }
 
+@Test func aRaceRunningPastItsScheduledEndKeepsProjectingWhileCarsStillReport() {
+    // The request: a race that overruns (red flag) must not lose its projection while cars are still racing.
+    func racing(locatedAt date: String) -> TimingSnapshot {
+        var live = driver("NOR", position: 1)
+        live = TimingDriver(number: live.number, name: live.name, acronym: live.acronym, team: live.team, color: live.color,
+                            position: 1, gap: nil, lap: nil, lapTime: nil, compound: nil,
+                            location: DriverLocation(x: 1, y: 2, date: date))
+        return snapshot([live])
+    }
+    let afterEnd = TrackLayout.parseDate("2025-12-07T15:10:00Z")!
+    #expect(ChampionshipProjection.scoringSession(for: racing(locatedAt: "2025-12-07T15:09:58Z"), now: afterEnd) == .race)
+    // Cars that stopped reporting 20 minutes ago mean the race is over: the official table takes over.
+    #expect(ChampionshipProjection.scoringSession(for: racing(locatedAt: "2025-12-07T14:50:00Z"), now: afterEnd) == nil)
+}
+
 @Test func teamColourComesFromTheLiveFeedAndSpeechStatesTheProjection() throws {
     let live = snapshot([driver("VER", position: 1, color: "3671C6"), driver("NOR", position: 2)])
     let rows = ChampionshipProjection.rows(standings: try standings(), snapshot: live, session: .race)

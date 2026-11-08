@@ -124,7 +124,8 @@ struct ChampionshipView: View {
             if isDemo {
                 Text("Demo").racingLabel().foregroundStyle(Color(RacingPalette.statusDemo))
             }
-            if standings.stale {
+            // A refresh that failed leaves the last table on screen, so say it may be out of date.
+            if standings.stale || store.failed {
                 Text("Stale").racingLabel().foregroundStyle(Color(RacingPalette.statusStale))
             }
         }

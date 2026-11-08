@@ -106,7 +106,11 @@ impl Results {
         let mut slot = slot.lock().await;
         if let Some((saved, at)) = &slot.saved {
             // A classification that is not published yet is re-checked sooner than a published one.
-            let ttl = if saved.entries.is_empty() {
+            // The same goes for a classification whose pit stops are still unknown (an outage or not
+            // published yet), so the counts appear soon after the source has them.
+            let incomplete = saved.entries.is_empty()
+                || saved.entries.iter().all(|entry| entry.pit_stops.is_none());
+            let ttl = if incomplete {
                 self.retry_after
             } else {
                 self.ttl
@@ -458,6 +462,7 @@ mod tests {
         requests: Arc<std::sync::atomic::AtomicUsize>,
         published: Arc<std::sync::atomic::AtomicBool>,
         failing: Arc<std::sync::atomic::AtomicBool>,
+        pit_stops_failing: Arc<std::sync::atomic::AtomicBool>,
     }
 
     async fn feed(slow_round: Option<u32>) -> Feed {
@@ -466,10 +471,15 @@ mod tests {
         let requests = Arc::new(AtomicUsize::new(0));
         let published = Arc::new(AtomicBool::new(false));
         let failing = Arc::new(AtomicBool::new(false));
+        let pit_stops_failing = Arc::new(AtomicBool::new(false));
         let (r, p, f) = (requests.clone(), published.clone(), failing.clone());
+        let pf = pit_stops_failing.clone();
         let app = Router::new().route(
             "/{year}/{round}/pitstops/",
-            get(|Path((year, round)): Path<(i32, u32)>| async move {
+            get(move |Path((year, round)): Path<(i32, u32)>| async move {
+                if pf.load(SeqCst) {
+                    return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+                }
                 // Round 3 has no pit-stop data yet; round 4's feed is broken; the rest stopped twice.
                 match round {
                     4 => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
@@ -513,6 +523,7 @@ mod tests {
             requests,
             published,
             failing,
+            pit_stops_failing,
         }
     }
 
@@ -579,6 +590,34 @@ mod tests {
             "a pit-stop outage keeps the classification"
         );
         assert_eq!(broken.entries[0].pit_stops, None);
+    }
+
+    #[tokio::test]
+    async fn pit_stops_missing_after_an_outage_appear_once_the_source_recovers() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let feed = feed(None).await;
+        feed.published.store(true, SeqCst);
+        feed.pit_stops_failing.store(true, SeqCst);
+        let results = client(&feed, Duration::from_millis(300));
+        assert_eq!(
+            results.load(2025, 1, false).await.unwrap().entries[0].pit_stops,
+            None
+        );
+        feed.pit_stops_failing.store(false, SeqCst);
+        assert_eq!(
+            results.load(2025, 1, false).await.unwrap().entries[0].pit_stops,
+            None,
+            "not asked again before the cooldown"
+        );
+        tokio::time::sleep(Duration::from_millis(350)).await;
+        assert_eq!(
+            results.load(2025, 1, false).await.unwrap().entries[0].pit_stops,
+            Some(2),
+            "the counts arrive without waiting out the full results cache"
+        );
+        let asked = count(&feed);
+        results.load(2025, 1, false).await.unwrap();
+        assert_eq!(count(&feed), asked, "complete results stay cached");
     }
 
     #[tokio::test]

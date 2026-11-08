@@ -16,8 +16,6 @@ struct TrackMapView: View {
     @ScaledMetric(relativeTo: .caption) private var labelWidth = 48
     @ScaledMetric(relativeTo: .caption) private var labelHeight = 22
 
-    /// OpenF1's raw frame can face any way; this turns the circuit to its official map orientation.
-
     private let kerbWidth: CGFloat = 22
     private let surfaceWidth: CGFloat = 12
 

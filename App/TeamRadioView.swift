@@ -60,7 +60,12 @@ private struct TeamRadioRow: View {
         .accessibilityLabel(radio.accessibilitySummary(driver: driver, timeText: timeText))
         .accessibilityValue(playing ? "Playing" : "")
         .accessibilityAddTraits(radio.playbackURL == nil ? [] : .isButton)
-        .accessibilityAction(named: playing ? "Stop" : "Play") { player.toggle(radio) }
+        .accessibilityActions {
+            // A clip with no recording (demo) has nothing to play, so it offers no Play action.
+            if radio.playbackURL != nil {
+                Button(playing ? "Stop" : "Play") { player.toggle(radio) }
+            }
+        }
     }
 
     private var header: some View {

@@ -425,24 +425,27 @@ impl TimingState {
                 .then_with(|| a.id.cmp(&b.id))
         });
         messages.truncate(MESSAGE_LIMIT);
-        let mut radios: Vec<TeamRadio> = self
+        // Dates are parsed once per clip, not on every comparison.
+        let mut radios: Vec<(Option<DateTime<chrono::FixedOffset>>, TeamRadio)> = self
             .records
             .get("team_radio")
             .into_iter()
             .flat_map(|b| b.iter())
-            .map(|(key, r)| TeamRadio {
-                id: key.clone(),
-                date: r["date"].as_str().unwrap_or_default().into(),
-                driver_number: r["driver_number"].as_i64().unwrap_or(0),
-                recording_url: recording_url(r),
+            .map(|(key, r)| {
+                let date = r["date"].as_str().unwrap_or_default();
+                (
+                    DateTime::parse_from_rfc3339(date).ok(),
+                    TeamRadio {
+                        id: key.clone(),
+                        date: date.into(),
+                        driver_number: r["driver_number"].as_i64().unwrap_or(0),
+                        recording_url: recording_url(r),
+                    },
+                )
             })
             .collect();
-        radios.sort_by(|a, b| {
-            let parse = |s: &str| DateTime::parse_from_rfc3339(s).ok();
-            parse(&b.date)
-                .cmp(&parse(&a.date))
-                .then_with(|| a.id.cmp(&b.id))
-        });
+        radios.sort_by(|(a_at, a), (b_at, b)| b_at.cmp(a_at).then_with(|| a.id.cmp(&b.id)));
+        let radios: Vec<TeamRadio> = radios.into_iter().map(|(_, radio)| radio).collect();
         let mut snapshot = Snapshot {
             mode: self.mode.clone(),
             upstream: self.upstream.clone(),
