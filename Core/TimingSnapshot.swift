@@ -60,19 +60,36 @@ public struct TrackPoint: Codable, Sendable, Equatable {
     }
 }
 
-public struct DriverLocation: Codable, Sendable {
+public struct DriverLocation: Codable, Sendable, Equatable {
     public let x: Double
     public let y: Double
     public let date: String
 
-    public var timestamp: Date? { TrackLayout.parseDate(date) }
+    public let timestamp: Date?
+
+    private enum CodingKeys: String, CodingKey { case x, y, date }
+
+    public init(x: Double, y: Double, date: String) {
+        self.x = x
+        self.y = y
+        self.date = date
+        timestamp = TrackLayout.parseDate(date)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(x: try values.decode(Double.self, forKey: .x),
+                  y: try values.decode(Double.self, forKey: .y),
+                  date: try values.decode(String.self, forKey: .date))
+    }
+
     public func isStale(at now: Date) -> Bool {
         guard let timestamp else { return true }
         return now.timeIntervalSince(timestamp) > 10 || timestamp.timeIntervalSince(now) > 5
     }
 }
 
-public struct TrackLayout: Codable, Sendable {
+public struct TrackLayout: Codable, Sendable, Equatable {
     public let source: String
     public let points: [TrackPoint]
     /// MultiViewer/FastF1 rotation, counterclockwise in telemetry coordinates.
