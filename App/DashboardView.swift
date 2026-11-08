@@ -8,6 +8,7 @@ struct DashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: RacingStyle.Space.xl) {
                 hero
+                FlagBanner(snapshot: store.snapshot, feed: feed)
                 if let error = store.error {
                     Label(error, systemImage: "wifi.exclamationmark")
                         .font(RacingStyle.Typography.body).foregroundStyle(Color(RacingPalette.statusStale))

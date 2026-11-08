@@ -1,3 +1,4 @@
+use crate::flags::{flag_status, FlagStatus};
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -12,6 +13,13 @@ pub const TOPICS: [&str; 7] = [
     "race_control",
     "location",
 ];
+
+/// Race-control messages shown to the app, newest first.
+const MESSAGE_LIMIT: usize = 100;
+
+/// Race-control messages kept per session. Far more than are shown: the flags that are out now are
+/// worked out from this history, and a session can run past the visible 100 messages.
+const RACE_CONTROL_LIMIT: usize = 1000;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Session {
@@ -34,6 +42,9 @@ pub struct Snapshot {
     pub messages: Vec<RaceMessage>,
     #[serde(default)]
     pub track: Option<TrackLayout>,
+    /// Which sectors are under yellow and whether the whole track is red or under a safety car.
+    #[serde(default)]
+    pub flags: FlagStatus,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -111,6 +122,10 @@ pub struct TimingState {
     pub session: Option<Session>,
     pub track: Option<TrackLayout>,
     records: HashMap<String, HashMap<String, Value>>,
+    /// Order race-control messages first arrived in. Their timestamps have one-second resolution, and
+    /// two messages in the same second (a yellow and its clear) must keep the order they were sent in.
+    race_control_arrival: HashMap<String, u64>,
+    next_arrival: u64,
     updated_at: Option<DateTime<Utc>>,
 }
 
@@ -131,6 +146,8 @@ impl TimingState {
             session: None,
             track: None,
             records: HashMap::new(),
+            race_control_arrival: HashMap::new(),
+            next_arrival: 0,
             updated_at: None,
         }
     }
@@ -138,6 +155,7 @@ impl TimingState {
     pub fn set_session(&mut self, session: Session) {
         if self.session.as_ref().map(|s| s.session_key) != Some(session.session_key) {
             self.records.clear();
+            self.race_control_arrival.clear();
             self.track = None;
             self.updated_at = None;
         }
@@ -210,14 +228,21 @@ impl TimingState {
                 target.extend(source.clone());
             }
         }
+        if topic == "race_control" {
+            self.race_control_arrival
+                .entry(key.clone())
+                .or_insert(self.next_arrival);
+            self.next_arrival += 1;
+        }
         bucket.insert(key, merged);
-        if topic == "race_control" && bucket.len() > 100 {
+        if topic == "race_control" && bucket.len() > RACE_CONTROL_LIMIT {
             if let Some(oldest) = bucket
                 .iter()
                 .min_by_key(|(_, r)| event_date(r))
                 .map(|(k, _)| k.clone())
             {
                 bucket.remove(&oldest);
+                self.race_control_arrival.remove(&oldest);
             }
         }
         if let Some(date) = date.filter(|_| topic != "location") {
@@ -232,6 +257,22 @@ impl TimingState {
             .get(topic)
             .and_then(|b| b.get(key))
             .unwrap_or(&Value::Null)
+    }
+
+    /// The flags out right now, from every race-control message of the session in the order sent.
+    fn flags(&self) -> FlagStatus {
+        let Some(bucket) = self.records.get("race_control") else {
+            return FlagStatus::default();
+        };
+        let mut ordered: Vec<(Option<DateTime<Utc>>, u64, &Value)> = bucket
+            .iter()
+            .map(|(key, record)| {
+                let arrival = self.race_control_arrival.get(key).copied().unwrap_or(0);
+                (event_date(record), arrival, record)
+            })
+            .collect();
+        ordered.sort_by_key(|(date, arrival, _)| (*date, *arrival));
+        flag_status(ordered.into_iter().map(|(_, _, record)| record))
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -285,6 +326,7 @@ impl TimingState {
                 .cmp(&parse(&a.date))
                 .then_with(|| a.id.cmp(&b.id))
         });
+        messages.truncate(MESSAGE_LIMIT);
         let mut snapshot = Snapshot {
             mode: self.mode.clone(),
             upstream: self.upstream.clone(),
@@ -300,6 +342,7 @@ impl TimingState {
             drivers,
             messages,
             track: self.track.clone(),
+            flags: self.flags(),
         };
         if self.mode == "demo" {
             let now = Utc::now();
@@ -361,6 +404,10 @@ impl TimingState {
             );
         }
         state.apply("race_control", json!({"session_key":1,"date":date,"message":"DEMO — Sample timing. No live race data."}));
+        // Sample flags so the banner and the track map have something to show. Sectors 3 and 4 are
+        // marshal sectors of the sample circuit, which the app splits into twelve equal parts.
+        state.apply("race_control", json!({"session_key":1,"date":date,"category":"Flag","flag":"YELLOW","scope":"Sector","sector":3,"message":"DEMO — YELLOW IN TRACK SECTOR 3"}));
+        state.apply("race_control", json!({"session_key":1,"date":date,"category":"Flag","flag":"DOUBLE YELLOW","scope":"Sector","sector":4,"message":"DEMO — DOUBLE YELLOW IN TRACK SECTOR 4"}));
         state.track = Some(TrackLayout {
             rotation_degrees: None,
             source: "Fictional demo circuit".into(),

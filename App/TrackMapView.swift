@@ -126,10 +126,16 @@ struct TrackMapView: View {
             if let projection = currentDrawing.projection {
                 let outline = currentDrawing.outline
                 let notLive = snapshot.positionsNotLiveCaption(at: now, connected: connected)
+                let flags = snapshot.activeFlags(at: now)
+                // Flags from a feed that is not live are the last known state, so they are drawn fainter.
+                let flagOpacity = FeedStatus.resolve(snapshot: snapshot, connected: connected, hasError: false, now: now).kind == .live ? 1.0 : 0.5
+                let sectors = flags.sectors.isEmpty ? nil : track.sectorRuns(circuit: snapshot.session?.circuit, isDemo: snapshot.mode == "demo")
                 ZStack {
                     // Track surface: a wide dark kerb outline with a lighter strip inside it.
                     outline.stroke(RacingStyle.trackEdge, style: StrokeStyle(lineWidth: kerbWidth, lineCap: .round, lineJoin: .round))
                     outline.stroke(RacingStyle.trackSurface, style: StrokeStyle(lineWidth: surfaceWidth, lineCap: .round, lineJoin: .round))
+                    trackFlagOverlay(outline, flags.track, opacity: flagOpacity)
+                    sectorFlagOverlay(flags, sectors, projection, opacity: flagOpacity)
                     startFinish(currentDrawing)
                     // Stale positions are one old spot: with every position stale nothing is plotted.
                     if notLive == nil {
@@ -139,6 +145,10 @@ struct TrackMapView: View {
                             animating: animationActive, markerSize: markerSize, labelWidth: labelWidth, labelHeight: labelHeight,
                             select: { selectedDriver = $0 })
                         accessibilityMarkers(projection, size: geometry.size, now: now)
+                    }
+                    if !flags.sectors.isEmpty, sectors == nil {
+                        sectorsUnknownNote(flags)
+                            .position(x: geometry.size.width / 2, y: geometry.size.height - 18)
                     }
                     if let notLive {
                         // Capped like other chrome: a caption that grows with the text would cover the whole map.
@@ -154,13 +164,83 @@ struct TrackMapView: View {
                 }
                 .clipped()
                 .accessibilityElement(children: .contain)
-                .accessibilityLabel("Track map. \(track.source)")
+                .accessibilityLabel(["Track map. \(track.source)", flags.isClear ? nil : flags.spokenDescription].compactMap { $0 }.joined(separator: ". "))
             } else {
                 ContentUnavailableView("Track layout unavailable", systemImage: "map")
             }
             }
             .task(id: key) { drawing = TrackDrawing(key: key) }
         }
+    }
+
+    // MARK: Flags
+
+    private func path(_ run: [TrackPoint], _ projection: TrackProjection) -> Path {
+        Path { path in
+            for (index, point) in run.compactMap({ projection.project(x: $0.x, y: $0.y) }).enumerated() {
+                let position = CGPoint(x: point.x, y: point.y)
+                if index == 0 { path.move(to: position) } else { path.addLine(to: position) }
+            }
+        }
+    }
+
+    /// Red flag, safety car and virtual safety car cover the whole circuit: the track surface takes the
+    /// flag's colour, and the virtual safety car is dashed so it differs from the full safety car without colour.
+    @ViewBuilder private func trackFlagOverlay(_ outline: Path, _ flag: TrackFlag, opacity: Double) -> some View {
+        if flag != .clear {
+            let dashed = flag == .virtualSafetyCar
+            // A glow in the kerb, because red and orange alone sit too close to the grey surface.
+            outline.stroke(flag.kind.color.opacity(0.35 * opacity), style: StrokeStyle(lineWidth: kerbWidth, lineCap: .round, lineJoin: .round))
+            outline.stroke(flag.kind.color.opacity(opacity),
+                           style: StrokeStyle(lineWidth: surfaceWidth, lineCap: dashed ? .butt : .round, lineJoin: .round,
+                                              dash: dashed ? [12, 8] : []))
+        }
+    }
+
+    /// Each yellow sector lights up its own stretch of the track with its number. A double yellow also gets a
+    /// dark dashed stripe, so the two are told apart without colour.
+    @ViewBuilder private func sectorFlagOverlay(_ flags: FlagStatus, _ sectors: SectorRuns?, _ projection: TrackProjection, opacity: Double) -> some View {
+        if let sectors {
+            let yellow = Color(RacingPalette.flagYellow)
+            ForEach(flags.sectors) { sector in
+                let pieces = sectors.points(forSector: sector.sector)
+                ForEach(pieces.indices, id: \.self) { index in
+                    let stretch = path(pieces[index], projection)
+                    stretch.stroke(yellow.opacity(0.3 * opacity), style: StrokeStyle(lineWidth: kerbWidth, lineCap: .butt, lineJoin: .round))
+                    stretch.stroke(yellow.opacity(opacity), style: StrokeStyle(lineWidth: surfaceWidth, lineCap: .butt, lineJoin: .round))
+                    if sector.flag == .doubleYellow {
+                        stretch.stroke(RacingStyle.trackEdge.opacity(opacity), style: StrokeStyle(lineWidth: 4, lineCap: .butt, lineJoin: .round, dash: [6, 6]))
+                    }
+                }
+                if let middle = longestPiece(pieces).flatMap({ $0[$0.count / 2] }).flatMap({ projection.project(x: $0.x, y: $0.y) }) {
+                    sectorBadge(sector, opacity: opacity).position(x: middle.x, y: middle.y)
+                }
+            }
+        }
+    }
+
+    private func longestPiece(_ pieces: [[TrackPoint]]) -> [TrackPoint]? {
+        pieces.max { $0.count < $1.count }
+    }
+
+    private func sectorBadge(_ sector: SectorFlag, opacity: Double) -> some View {
+        Text(String(sector.sector)).font(RacingStyle.Typography.label.monospacedDigit())
+            .dynamicTypeSize(...DynamicTypeSize.xLarge)
+            .foregroundStyle(Color(RacingPalette.onStatus))
+            .padding(.horizontal, RacingStyle.Space.xs + 2).padding(.vertical, 1)
+            .background(Color(RacingPalette.flagYellow).opacity(opacity), in: Capsule())
+            .overlay(Capsule().stroke(Color(RacingPalette.onStatus), lineWidth: sector.flag == .doubleYellow ? 2 : 1))
+            .accessibilityHidden(true)
+    }
+
+    /// Shown when a sector is flagged but this circuit's sectors cannot be placed on the outline.
+    private func sectorsUnknownNote(_ flags: FlagStatus) -> some View {
+        Text("Sector positions are not available for this circuit")
+            .font(RacingStyle.Typography.caption).dynamicTypeSize(...DynamicTypeSize.xLarge)
+            .foregroundStyle(RacingStyle.textSecondary)
+            .padding(.horizontal, RacingStyle.Space.m).padding(.vertical, RacingStyle.Space.xs)
+            .background(RacingStyle.background.opacity(0.85), in: Capsule())
+            .accessibilityHidden(true)
     }
 
     /// The markers are drawn, not views, so VoiceOver gets one invisible element per driver. They sit where
