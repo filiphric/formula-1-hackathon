@@ -56,6 +56,10 @@ struct TrackMapView: View {
                         description: Text("The circuit outline appears after a complete timed lap is available. Driver locations require a backend with track support."))
                         .frame(minHeight: 220)
                 }
+                if snapshot.mode != "demo", let track = snapshot.track {
+                    Text(track.rotationDegrees == nil ? "Orientation unverified · Raw telemetry" : "Circuit orientation · MultiViewer")
+                        .font(RacingStyle.Typography.caption).foregroundStyle(RacingStyle.textSecondary)
+                }
                 footer(now: context.date)
             }
             .frame(maxHeight: fillsHeight ? .infinity : nil, alignment: .top)

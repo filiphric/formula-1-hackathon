@@ -62,10 +62,69 @@ private func instant(_ value: String) -> Date {
     #expect(RaceSchedule.endpoint(from: "ws://user:password@example.com/live", season: 2026) == nil)
 }
 
-@Test func backendFractionalFetchTimestampControlsFreshness() throws {
+@Test func backendFractionalFetchTimestampAndElapsedFreshness() throws {
     let schedule = try fixture()
     let fetched = try #require(schedule.fetchedDate)
     #expect(abs(fetched.timeIntervalSince(instant("2026-11-06T15:00:00Z")) - 0.123456) < 0.001)
-    #expect(!schedule.isStale(at: fetched.addingTimeInterval(899)))
-    #expect(schedule.isStale(at: fetched.addingTimeInterval(900)))
+    #expect(schedule.isStale(elapsedSinceValidation: -1))
+    #expect(!schedule.isStale(elapsedSinceValidation: 899))
+    #expect(schedule.isStale(elapsedSinceValidation: 900))
+}
+
+@Test func seasonsMatchBackendUTCYearAroundNewYear() {
+    // Already January 1 in Bratislava, but the server still accepts through 2027.
+    let before = instant("2026-12-31T23:30:00Z")
+    #expect(RaceSchedule.currentSeason(at: before) == 2026)
+    #expect(RaceSchedule.availableSeasons(at: before) == [2027, 2026, 2025, 2024, 2023])
+    let after = instant("2027-01-01T00:00:00Z")
+    #expect(RaceSchedule.currentSeason(at: after) == 2027)
+    #expect(RaceSchedule.availableSeasons(at: after).first == 2028)
+}
+
+@Test func scheduleEndpointPreservesDeploymentPrefix() {
+    #expect(RaceSchedule.endpoint(from: "wss://example.com/formula/live", season: 2026)?.absoluteString == "https://example.com/formula/schedule/2026")
+    #expect(RaceSchedule.endpoint(from: "wss://example.com/a%20b/live/?old=1", season: 2025)?.absoluteString == "https://example.com/a%20b/schedule/2025")
+}
+
+@Test func editingServerDoesNotChangeConfirmedConnection() {
+    var connection = ServerConnection(endpoint: "ws://first.example/live")
+    connection.beginEditing()
+    connection.draftEndpoint = "ws://partial"
+    #expect(connection.activeEndpoint == "ws://first.example/live")
+    connection.beginEditing() // Reopening a dismissed sheet discards its abandoned draft.
+    #expect(connection.draftEndpoint == "ws://first.example/live")
+    connection.draftEndpoint = "  wss://second.example/formula/live  "
+    connection.connect()
+    #expect(connection.activeEndpoint == "wss://second.example/formula/live")
+}
+
+@Test func rescheduledRaceUsesDateInsteadOfRoundForNextRace() throws {
+    let original = try fixture()
+    let postponed = RaceWeekend(round: 1, name: "Postponed Grand Prix", circuit: "Sample", country: "Sample", sessions: [
+        ScheduledSession(name: "Race", date: "2026-12-01", start: "2026-12-01T14:00:00Z")
+    ])
+    let schedule = RaceSchedule(season: 2026, mode: "calendar", source: "Sample", fetchedAt: original.fetchedAt,
+                                stale: false, races: [postponed, original.races[1]])
+    #expect(schedule.nextRace(at: instant("2026-11-01T00:00:00Z"))?.round == 2)
+}
+
+@Test func deviceServerClockSkewDoesNotMakeFreshCalendarStale() throws {
+    let original = try fixture()
+    let future = RaceSchedule(season: 2026, mode: "calendar", source: original.source,
+                              fetchedAt: "2099-01-01T00:00:00Z", stale: false, races: original.races, expiresIn: 900)
+    #expect(!future.isStale(elapsedSinceValidation: 0))
+    #expect(!future.isStale(elapsedSinceValidation: 899))
+    #expect(future.isStale(elapsedSinceValidation: 900))
+    let stale = RaceSchedule(season: 2026, mode: "calendar", source: original.source,
+                             fetchedAt: future.fetchedAt, stale: true, races: original.races)
+    #expect(stale.isStale(elapsedSinceValidation: 0))
+}
+
+@Test func warmServerCacheExpiresAtItsRemainingLifetime() throws {
+    var schedule = try fixture()
+    schedule.expiresIn = 30
+    #expect(!schedule.isStale(elapsedSinceValidation: 29))
+    #expect(schedule.isStale(elapsedSinceValidation: 30))
+    schedule.expiresIn = nil
+    #expect(schedule.isStale(elapsedSinceValidation: 0))
 }

@@ -3,7 +3,11 @@ use anyhow::{bail, Context, Result};
 use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Mutex;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -14,6 +18,8 @@ pub struct Schedule {
     pub source: String,
     pub fetched_at: String,
     pub stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<u64>,
     pub races: Vec<Weekend>,
 }
 
@@ -38,9 +44,24 @@ pub struct Session {
 
 pub struct Calendar {
     http: reqwest::Client,
-    // Serializes refreshes, so multiple clients do not burst the public API.
-    cache: Mutex<HashMap<i32, Schedule>>,
+    // Coalesce requests per season without blocking other seasons.
+    cache: Mutex<HashMap<i32, Arc<Mutex<CacheEntry>>>>,
     base_url: String,
+}
+
+#[derive(Default)]
+struct CacheEntry {
+    schedule: Option<Schedule>,
+    retry_after: Option<Instant>,
+}
+
+impl CacheEntry {
+    fn stale(&self) -> Result<Schedule> {
+        let mut saved = self.schedule.clone().context("Calendar unavailable")?;
+        saved.stale = true;
+        saved.expires_in = Some(0);
+        Ok(saved)
+    }
 }
 
 impl Default for Calendar {
@@ -64,26 +85,35 @@ impl Calendar {
         if demo {
             return Ok(demo_schedule(year));
         }
-        let mut cache = self.cache.lock().await;
-        if let Some(saved) = cache.get(&year) {
+        let entry = self.cache.lock().await.entry(year).or_default().clone();
+        let mut entry = entry.lock().await;
+        if let Some(saved) = &entry.schedule {
             let age = chrono::DateTime::parse_from_rfc3339(&saved.fetched_at)?;
-            if Utc::now().signed_duration_since(age).num_seconds() < 900 {
-                return Ok(saved.clone());
+            let age_seconds = Utc::now().signed_duration_since(age).num_seconds();
+            if (0..900).contains(&age_seconds) {
+                let mut cached = saved.clone();
+                cached.expires_in = Some(900 - age_seconds as u64);
+                return Ok(cached);
             }
+        }
+        if entry
+            .retry_after
+            .is_some_and(|deadline| Instant::now() < deadline)
+        {
+            return entry.stale();
         }
         match self.fetch(year).await {
             Ok(schedule) => {
-                cache.insert(year, schedule.clone());
+                entry.schedule = Some(schedule.clone());
+                entry.retry_after = None;
                 Ok(schedule)
             }
-            Err(error) => match cache.get(&year) {
-                Some(saved) => {
-                    let mut saved = saved.clone();
-                    saved.stale = true;
-                    Ok(saved)
-                }
-                None => Err(error),
-            },
+            Err(error) => {
+                tracing::warn!(season = year, %error, "Calendar refresh failed; retaining any saved schedule");
+                // Prevent queued callers from repeating a failing request immediately.
+                entry.retry_after = Some(Instant::now() + Duration::from_secs(30));
+                entry.stale()
+            }
         }
     }
 
@@ -151,7 +181,14 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
                 start,
             });
         }
-        sessions.sort_by(|a, b| a.date.cmp(&b.date).then(a.start.cmp(&b.start)));
+        // Group days in calendar order while preserving the F1 session sequence.
+        // Reorder within a day only when every start time is published.
+        sessions.sort_by(|a, b| a.date.cmp(&b.date));
+        for day in sessions.chunk_by_mut(|a, b| a.date == b.date) {
+            if day.iter().all(|session| session.start.is_some()) {
+                day.sort_by(|a, b| a.start.cmp(&b.start));
+            }
+        }
         races.push(Weekend {
             round: text(&race["round"])?.parse()?,
             name: text(&race["raceName"])?,
@@ -160,13 +197,26 @@ fn normalize(year: i32, value: &Value) -> Result<Schedule> {
             sessions,
         });
     }
-    races.sort_by_key(|race| race.round);
+    races.sort_by(|a, b| {
+        let a_date = a
+            .sessions
+            .iter()
+            .find(|s| s.name == "Race")
+            .map(|s| s.date.as_str());
+        let b_date = b
+            .sessions
+            .iter()
+            .find(|s| s.name == "Race")
+            .map(|s| s.date.as_str());
+        a_date.cmp(&b_date).then(a.round.cmp(&b.round))
+    });
     Ok(Schedule {
         season: year,
         mode: "calendar".into(),
         source: "Jolpica F1".into(),
         fetched_at: Utc::now().to_rfc3339(),
         stale: false,
+        expires_in: Some(900),
         races,
     })
 }
@@ -213,6 +263,7 @@ fn demo_schedule(year: i32) -> Schedule {
         source: "Fictional sample calendar".into(),
         fetched_at: Utc::now().to_rfc3339(),
         stale: false,
+        expires_in: Some(900),
         races: vec![
             weekend(1, "Sample Grand Prix", 3, false),
             weekend(2, "Sample Sprint Weekend", 11, true),
@@ -224,6 +275,70 @@ fn demo_schedule(year: i32) -> Schedule {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn a_busy_season_does_not_block_another_seasons_cache() {
+        use axum::{extract::State, routing::get, Router};
+        use tokio::sync::Notify;
+        let arrived = Arc::new(Notify::new());
+        async fn slow(State(arrived): State<Arc<Notify>>) -> &'static str {
+            arrived.notify_one();
+            std::future::pending().await
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route("/2025/races/", get(slow))
+            .with_state(arrived.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let calendar = Arc::new(Calendar {
+            base_url: format!("http://{address}"),
+            ..Calendar::default()
+        });
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(demo_schedule(2026)),
+                retry_after: None,
+            })),
+        );
+        let loading = calendar.clone();
+        let in_flight = tokio::spawn(async move { loading.load(2025, false).await });
+        tokio::time::timeout(Duration::from_secs(2), arrived.notified())
+            .await
+            .unwrap();
+        let cached =
+            tokio::time::timeout(Duration::from_millis(100), calendar.load(2026, false)).await;
+        in_flight.abort();
+        server.abort();
+        assert_eq!(cached.unwrap().unwrap().season, 2026);
+    }
+
+    #[tokio::test]
+    async fn failed_refreshes_are_coalesced_during_retry_cooldown() {
+        use axum::{extract::State, http::StatusCode, routing::get, Router};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let calls = Arc::new(AtomicUsize::new(0));
+        async fn fail(State(calls): State<Arc<AtomicUsize>>) -> StatusCode {
+            calls.fetch_add(1, Ordering::SeqCst);
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route("/2026/races/", get(fail))
+            .with_state(calls.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let calendar = Calendar {
+            base_url: format!("http://{address}"),
+            ..Calendar::default()
+        };
+        for _ in 0..3 {
+            assert!(calendar.load(2026, false).await.is_err());
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        server.abort();
+    }
 
     #[test]
     fn shared_swift_fixture_preserves_wire_contract() {
@@ -237,6 +352,73 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn warm_cache_reports_only_its_remaining_lifetime() {
+        let calendar = Calendar {
+            base_url: "http://127.0.0.1:0".into(),
+            ..Calendar::default()
+        };
+        let mut saved = demo_schedule(2026);
+        saved.fetched_at = (Utc::now() - chrono::Duration::seconds(870)).to_rfc3339();
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
+        let response = calendar.load(2026, false).await.unwrap();
+        assert!(!response.stale);
+        assert_eq!(response.expires_in, Some(30));
+    }
+
+    #[tokio::test]
+    async fn future_fetch_time_is_stale_after_a_clock_rollback() {
+        let calendar = Calendar {
+            base_url: "http://127.0.0.1:0".into(),
+            ..Calendar::default()
+        };
+        let mut saved = demo_schedule(2026);
+        saved.fetched_at = (Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
+        assert!(calendar.load(2026, false).await.unwrap().stale);
+    }
+
+    #[test]
+    fn mixed_published_times_preserve_practice_sequence() {
+        let value = json!({"MRData":{"total":"1","RaceTable":{"Races":[{
+            "season":"2026","round":"1","raceName":"Sample Grand Prix",
+            "Circuit":{"circuitName":"Sample","Location":{"country":"Sample"}},
+            "date":"2026-03-15","time":"14:00:00Z",
+            "FirstPractice":{"date":"2026-03-13"},
+            "SecondPractice":{"date":"2026-03-13","time":"16:00:00Z"},
+            "ThirdPractice":{"date":"2026-03-14","time":"12:00:00Z"},
+            "Qualifying":{"date":"2026-03-14","time":"16:00:00Z"}
+        }]}}});
+        let schedule = normalize(2026, &value).unwrap();
+        assert_eq!(
+            schedule.races[0]
+                .sessions
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Practice 1",
+                "Practice 2",
+                "Practice 3",
+                "Qualifying",
+                "Race"
+            ]
+        );
+        assert!(schedule.races[0].sessions[0].start.is_none());
+    }
+
     #[test]
     fn preserves_all_sprint_sessions_and_unknown_times() {
         let value = json!({"MRData":{"total":"1","RaceTable":{"Races":[{
@@ -248,6 +430,52 @@ mod tests {
             "Sprint":{"date":"2026-03-14","time":"03:00:00Z"},
             "Qualifying":{"date":"2026-03-14"}
         }]}}});
+        let mut untimed = value.clone();
+        for key in [
+            "",
+            "FirstPractice",
+            "SprintQualifying",
+            "Sprint",
+            "Qualifying",
+        ] {
+            let race = &mut untimed["MRData"]["RaceTable"]["Races"][0];
+            let record = if key.is_empty() { race } else { &mut race[key] };
+            record["date"] = json!("2026-03-15");
+            record["time"] = Value::Null;
+        }
+        let unknown = normalize(2026, &untimed).unwrap();
+        assert_eq!(
+            unknown.races[0]
+                .sessions
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Practice 1",
+                "Sprint qualifying",
+                "Sprint",
+                "Qualifying",
+                "Race"
+            ]
+        );
+        let mut rescheduled = value.clone();
+        let mut later = rescheduled["MRData"]["RaceTable"]["Races"][0].clone();
+        later["round"] = json!("1");
+        later["date"] = json!("2026-12-01");
+        rescheduled["MRData"]["RaceTable"]["Races"]
+            .as_array_mut()
+            .unwrap()
+            .insert(0, later);
+        rescheduled["MRData"]["total"] = json!("2");
+        assert_eq!(
+            normalize(2026, &rescheduled)
+                .unwrap()
+                .races
+                .iter()
+                .map(|r| r.round)
+                .collect::<Vec<_>>(),
+            [2, 1]
+        );
         let schedule = normalize(2026, &value).unwrap();
         let sessions = &schedule.races[0].sessions;
         assert_eq!(
@@ -255,14 +483,14 @@ mod tests {
             [
                 "Practice 1",
                 "Sprint qualifying",
-                "Qualifying",
                 "Sprint",
+                "Qualifying",
                 "Race"
             ]
         );
         assert_eq!(sessions[1].start.as_deref(), Some("2026-03-13T07:30:00Z"));
-        assert!(sessions[2].start.is_none());
-        assert_eq!(sessions[2].date, "2026-03-14");
+        assert!(sessions[3].start.is_none());
+        assert_eq!(sessions[3].date, "2026-03-14");
         assert!(normalize(2025, &value).is_err());
         let mut partial = value;
         partial["MRData"]["total"] = json!("2");
@@ -279,7 +507,13 @@ mod tests {
         let mut saved = demo_schedule(2026);
         saved.mode = "calendar".into();
         saved.fetched_at = "2020-01-01T00:00:00Z".into();
-        calendar.cache.lock().await.insert(2026, saved);
+        calendar.cache.lock().await.insert(
+            2026,
+            Arc::new(Mutex::new(CacheEntry {
+                schedule: Some(saved),
+                retry_after: None,
+            })),
+        );
         let stale = calendar.load(2026, false).await.unwrap();
         assert!(stale.stale);
         assert_eq!(stale.fetched_at, "2020-01-01T00:00:00Z");

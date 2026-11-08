@@ -113,3 +113,22 @@ private func trackSnapshot(mode: String = "live", upstream: String = "connected"
     motion.receive(DriverLocation(x: 500, y: 1, date: "2026-11-07T12:00:03Z"), at: time.addingTimeInterval(11), animated: false)
     #expect(motion.point(at: time.addingTimeInterval(11))?.x == 500)
 }
+
+// A 90° CCW telemetry rotation sends east to north (up on screen),
+// and turns a 2:1 bounding box into 1:2. These expectations follow the
+// requested shared circuit orientation, independent of projection internals.
+@Test func rotatesOutlineAndCarsBeforeFittingTheViewport() throws {
+    let track = try JSONDecoder().decode(TrackLayout.self, from: Data(#"{"source":"test","rotationDegrees":90,"points":[{"x":0,"y":0},{"x":200,"y":0},{"x":200,"y":100},{"x":0,"y":100}]}"#.utf8))
+    #expect(abs(try #require(track.aspectRatio) - 0.5) < 0.00001)
+    let projection = try #require(track.projection(width: 300, height: 400))
+    let start = try #require(projection.project(x: 0, y: 0))
+    let east = try #require(projection.project(x: 200, y: 0))
+    #expect(abs(start.x - east.x) < 0.00001)
+    #expect(east.y < start.y)
+    #expect(abs(east.y - 32) < 0.00001)
+    #expect(abs(start.y - 368) < 0.00001)
+    let north = try #require(projection.project(x: 0, y: 100))
+    #expect(north.x < start.x)
+    let legacy = try #require(try trackSnapshot().track)
+    #expect(legacy.rotationDegrees == nil)
+}

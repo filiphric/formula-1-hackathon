@@ -83,7 +83,10 @@ pub struct DriverLocation {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TrackLayout {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotation_degrees: Option<f64>,
     pub source: String,
     pub points: Vec<TrackPoint>,
 }
@@ -359,6 +362,7 @@ impl TimingState {
         }
         state.apply("race_control", json!({"session_key":1,"date":date,"message":"DEMO — Sample timing. No live race data."}));
         state.track = Some(TrackLayout {
+            rotation_degrees: None,
             source: "Fictional demo circuit".into(),
             points: (0..=180)
                 .map(|i| demo_point(f64::from(i) / 180.0))

@@ -312,9 +312,9 @@ extension TimingSnapshot {
 extension TrackLayout {
     /// Width over height of the circuit's bounding box, so the map can take the circuit's own shape.
     public var aspectRatio: Double? {
-        guard points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
-              let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
-              let minY = points.map(\.y).min(), let maxY = points.map(\.y).max(),
+        guard orientedPoints.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              let minX = orientedPoints.map(\.x).min(), let maxX = orientedPoints.map(\.x).max(),
+              let minY = orientedPoints.map(\.y).min(), let maxY = orientedPoints.map(\.y).max(),
               maxX > minX, maxY > minY else { return nil }
         return (maxX - minX) / (maxY - minY)
     }
