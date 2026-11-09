@@ -55,6 +55,7 @@ struct FlagBanner: View {
         if feed.isDemo { return "Demo · simulated flags" }
         switch feed.kind {
         case .live: return nil
+        case .ended: return "Last known · session ended" + (feed.ageText.map { ", \($0) ago" } ?? "")
         case .stale, .offline, .connecting:
             return "Last known · timing is \(feed.label.lowercased())" + (feed.ageText.map { ", \($0) old" } ?? "")
         }
